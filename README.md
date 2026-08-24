@@ -9,6 +9,7 @@
 - [系统需求](docs/requirements/mcp-gateway-requirements.md)
 - [领域词汇](CONTEXT.md)
 - [架构决策](docs/adr/)
+- [目标模式执行文档](docs/goals/README.md)
 - [Agent 协作规则](AGENTS.md)
 
 项目当前处于需求已确认、待进入实现阶段的状态。实现应遵循最简单可维护原则，不对延期范围进行预先设计。
