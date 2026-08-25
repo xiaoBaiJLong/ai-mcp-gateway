@@ -1,14 +1,10 @@
 spring:
   application:
     name: ai-mcp-gateway
-  datasource:
-    url: ${MYSQL_URL:jdbc:mysql://localhost:3306/mcp_gateway?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC}
-    username: ${MYSQL_USERNAME:mcp_gateway}
-    password: ${MYSQL_PASSWORD:mcp_gateway}
+  profiles:
+    default: local
   data:
     redis:
-      host: ${REDIS_HOST:localhost}
-      port: ${REDIS_PORT:6379}
       repositories:
         enabled: false
   flyway:
@@ -22,11 +18,6 @@ server:
       cookie:
         http-only: true
         same-site: lax
-
-gateway:
-  nacos:
-    enabled: true
-    server-address: ${NACOS_SERVER_ADDRESS:localhost:8848}
 
 management:
   endpoints:

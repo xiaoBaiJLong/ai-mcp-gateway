@@ -10,9 +10,16 @@
 - [领域词汇](CONTEXT.md)
 - [架构决策](docs/adr/)
 - [目标模式执行文档](docs/goals/README.md)
+- [云端开发与验收工作流](docs/deployment/cloud-development.md)
 - [Agent 协作规则](AGENTS.md)
 
-## 本地启动
+## 推荐开发方式
+
+当开发者电脑没有容器运行时时，MySQL、Redis 和 Nacos 运行在云服务器 Docker 中；后端和前端仍可在本机运行，以保留热更新和断点调试能力。本机后端默认启用 `local` Profile，通过 SSH 隧道连接云端映射端口：MySQL `16033`、Redis `19736`、Nacos `18848/19848/19849`。
+
+每个 Issue 开发和自动化验证完成后，使用 `compose.cloud.yaml` 将前端、后端和基础设施整体部署到云服务器。云端后端启用 `cloud` Profile，通过 Compose 服务名连接容器内部端口，不经过宿主机映射端口。完整操作参见[云端开发与验收工作流](docs/deployment/cloud-development.md)。
+
+## 可选：本地完整启动
 
 ### 环境要求
 
@@ -21,7 +28,7 @@
 - Node.js 20.19+ 或 22.12+
 - Docker 与 Docker Compose
 
-以下命令均在仓库根目录执行。首次启动会创建空的 MySQL 数据卷，后端启动时由 Flyway 自动执行基线迁移。
+本机具备 Docker 时仍可使用以下兼容方式。命令均在仓库根目录执行，首次启动会创建空的 MySQL 数据卷，后端启动时由 Flyway 自动执行基线迁移。
 
 ```powershell
 docker compose up -d mysql redis nacos
@@ -32,6 +39,7 @@ docker compose ps
 
 ```powershell
 cd backend
+$env:SPRING_PROFILES_ACTIVE='standalone'
 mvn spring-boot:run
 ```
 

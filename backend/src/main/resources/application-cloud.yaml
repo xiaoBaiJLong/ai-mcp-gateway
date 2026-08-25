@@ -1,0 +1,16 @@
+spring:
+  datasource:
+    # cloud Profile 中各组件位于同一 Compose 网络，不经过宿主机暴露端口。
+    url: ${MYSQL_URL:jdbc:mysql://mysql:3306/mcp_gateway?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC}
+    username: ${MYSQL_USERNAME}
+    password: ${MYSQL_PASSWORD}
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD}
+
+gateway:
+  nacos:
+    enabled: true
+    server-address: ${NACOS_SERVER_ADDRESS:nacos:8848}

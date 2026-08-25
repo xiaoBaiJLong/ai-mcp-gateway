@@ -1,0 +1,16 @@
+spring:
+  datasource:
+    # local Profile 表示应用运行在开发者电脑，基础设施通过云端映射端口或 SSH 隧道访问。
+    url: ${MYSQL_URL:jdbc:mysql://127.0.0.1:16033/mcp_gateway?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC}
+    username: ${MYSQL_USERNAME:mcp_gateway}
+    password: ${MYSQL_PASSWORD}
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:19736}
+      password: ${REDIS_PASSWORD}
+
+gateway:
+  nacos:
+    enabled: true
+    server-address: ${NACOS_SERVER_ADDRESS:127.0.0.1:18848}

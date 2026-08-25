@@ -1,0 +1,95 @@
+services:
+  mysql:
+    image: mysql:8.4.6
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-mcp_gateway}
+      MYSQL_USER: ${MYSQL_USERNAME:?请在 .env.cloud 中设置 MYSQL_USERNAME}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?请在 .env.cloud 中设置 MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?请在 .env.cloud 中设置 MYSQL_ROOT_PASSWORD}
+    ports:
+      - "${MYSQL_BIND_ADDRESS:-127.0.0.1}:${MYSQL_EXPOSE_PORT:-16033}:3306"
+    volumes:
+      - mysql-cloud-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7.4.5-alpine
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?请在 .env.cloud 中设置 REDIS_PASSWORD}
+    command: ["sh", "-c", "exec redis-server --appendonly yes --requirepass \"$$REDIS_PASSWORD\""]
+    ports:
+      - "${REDIS_BIND_ADDRESS:-127.0.0.1}:${REDIS_EXPOSE_PORT:-19736}:6379"
+    volumes:
+      - redis-cloud-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$REDIS_PASSWORD\" redis-cli ping | grep PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  nacos:
+    image: ${NACOS_IMAGE:-nacos/nacos-server:v2.5.3}
+    environment:
+      MODE: standalone
+      NACOS_AUTH_ENABLE: "false"
+      JVM_XMS: 256m
+      JVM_XMX: 512m
+      JVM_XMN: 128m
+    ports:
+      - "${NACOS_BIND_ADDRESS:-127.0.0.1}:${NACOS_HTTP_EXPOSE_PORT:-18848}:8848"
+      - "${NACOS_BIND_ADDRESS:-127.0.0.1}:${NACOS_GRPC_EXPOSE_PORT:-19848}:9848"
+      - "${NACOS_BIND_ADDRESS:-127.0.0.1}:${NACOS_GRPC_COMPAT_EXPOSE_PORT:-19849}:9849"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8848/nacos/v1/console/health/readiness"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      SPRING_PROFILES_ACTIVE: cloud
+      MYSQL_URL: "jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-mcp_gateway}?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC"
+      MYSQL_USERNAME: ${MYSQL_USERNAME:?请在 .env.cloud 中设置 MYSQL_USERNAME}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?请在 .env.cloud 中设置 MYSQL_PASSWORD}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?请在 .env.cloud 中设置 REDIS_PASSWORD}
+      NACOS_SERVER_ADDRESS: nacos:8848
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/actuator/health/readiness > /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "${APP_BIND_ADDRESS:-0.0.0.0}:${APP_PORT:-18080}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/ > /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  mysql-cloud-data:
+  redis-cloud-data:

@@ -1,0 +1,15 @@
+spring:
+  datasource:
+    # standalone Profile 保留仓库原有的本机 Compose 拓扑。
+    url: ${MYSQL_URL:jdbc:mysql://127.0.0.1:3306/mcp_gateway?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC}
+    username: ${MYSQL_USERNAME:mcp_gateway}
+    password: ${MYSQL_PASSWORD:mcp_gateway}
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+
+gateway:
+  nacos:
+    enabled: true
+    server-address: ${NACOS_SERVER_ADDRESS:127.0.0.1:8848}
