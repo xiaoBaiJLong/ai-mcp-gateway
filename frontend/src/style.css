@@ -60,6 +60,8 @@ small { overflow-wrap: anywhere; color: #60736b; }
 .credential { display: grid; gap: 10px; margin: 18px 0; padding: 16px; border: 2px solid #d39b2a; border-radius: 10px; background: #fff8e8; }
 .credential code { overflow-wrap: anywhere; user-select: all; }
 .permission-result { padding: 10px; border-radius: 8px; background: #f1f5f3; overflow-wrap: anywhere; }
+.status-ok { color: #176944; font-weight: 700; }
+.status-failed { color: #8b2525; font-weight: 700; }
 
 @media (max-width: 560px) {
   .shell { width: min(100% - 20px, 760px); padding: 20px 0; }

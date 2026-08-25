@@ -4,8 +4,11 @@ import {
   addAgentRole,
   addRoleToolSet,
   createAgent,
+  createDraftFromVersion,
   createRole,
+  createToolDraft,
   createToolSet,
+  createUpstream,
   deleteAgent,
   deleteRole,
   deleteToolSet,
@@ -14,20 +17,31 @@ import {
   getGatewayProfile,
   getRoles,
   getToolSets,
+  getToolDrafts,
+  getToolVersions,
+  getUpstreams,
   login,
+  checkUpstream,
+  publishToolDraft,
   removeAgentRole,
   removeRoleToolSet,
   resetAgentApiKey,
+  validateToolDraft,
   updateAgent,
   updateGatewayProfile,
   updateRole,
+  updateToolDraft,
   updateToolSet,
   type Agent,
   type AgentCredential,
   type GatewayProfile,
   type Role,
+  type RiskLevel,
   type Session,
+  type StaticUpstream,
+  type ToolDraft,
   type ToolSet,
+  type ToolVersion,
 } from './api'
 
 const username = ref('admin')
@@ -52,6 +66,18 @@ const selectedRoleId = ref<number | null>(null)
 const selectedToolSetId = ref<number | null>(null)
 const oneTimeCredential = ref<AgentCredential | null>(null)
 const permissionToolNames = ref<string[]>([])
+const upstreams = ref<StaticUpstream[]>([])
+const toolDrafts = ref<ToolDraft[]>([])
+const toolVersions = ref<ToolVersion[]>([])
+const newServiceId = ref('')
+const newUpstreamName = ref('')
+const newBaseUrl = ref('')
+const newToolName = ref('')
+const newToolDisplayName = ref('')
+const newRiskLevel = ref<RiskLevel>('READ_ONLY')
+const newUpstreamId = ref<number | null>(null)
+const newHttpMethod = ref('GET')
+const newPath = ref('')
 
 const canWrite = computed(() => session.value?.role === 'PLATFORM_ADMIN')
 
@@ -63,12 +89,26 @@ async function submitLogin() {
     session.value = await login(username.value, password.value)
     profile.value = await getGatewayProfile()
     nameDraft.value = profile.value.name
-    await refreshAuthorization()
+    await Promise.all([refreshAuthorization(), refreshTools()])
   } catch (error) {
     session.value = null
     errorMessage.value = error instanceof Error ? error.message : '登录失败'
   } finally {
     loading.value = false
+  }
+}
+
+async function refreshTools() {
+  const [upstreamList, draftList, versionList] = await Promise.all([
+    getUpstreams(),
+    getToolDrafts(),
+    getToolVersions(),
+  ])
+  upstreams.value = upstreamList
+  toolDrafts.value = draftList
+  toolVersions.value = versionList
+  if (!upstreamList.some(upstream => upstream.id === newUpstreamId.value)) {
+    newUpstreamId.value = upstreamList[0]?.id ?? null
   }
 }
 
@@ -235,6 +275,82 @@ async function saveProfile() {
     loading.value = false
   }
 }
+
+async function submitUpstream() {
+  await runWrite(async () => {
+    await createUpstream(newServiceId.value, newUpstreamName.value, newBaseUrl.value)
+    newServiceId.value = ''
+    newUpstreamName.value = ''
+    newBaseUrl.value = ''
+    await refreshTools()
+  }, '静态 HTTP 上游已登记，并已记录连通结果')
+}
+
+async function recheckUpstream(upstream: StaticUpstream) {
+  await runWrite(async () => {
+    await checkUpstream(upstream.id)
+    await refreshTools()
+  }, '上游连通状态已更新')
+}
+
+async function submitToolDraft() {
+  if (newUpstreamId.value === null) return
+  await runWrite(async () => {
+    await createToolDraft({
+      toolName: newToolName.value,
+      displayName: newToolDisplayName.value,
+      riskLevel: newRiskLevel.value,
+      upstreamId: newUpstreamId.value!,
+      httpMethod: newHttpMethod.value,
+      path: newPath.value,
+    })
+    newToolName.value = ''
+    newToolDisplayName.value = ''
+    newPath.value = ''
+    await refreshTools()
+  }, '工具草稿已保存，请校验后发布')
+}
+
+async function validateDraft(draft: ToolDraft) {
+  await runWrite(async () => {
+    await validateToolDraft(draft.id)
+    await refreshTools()
+  }, '工具草稿校验完成')
+}
+
+async function editDraft(draft: ToolDraft) {
+  const displayName = window.prompt('工具显示名称', draft.displayName)?.trim()
+  if (!displayName) return
+  const path = window.prompt('上游相对路径', draft.path)
+  if (path === null) return
+  await runWrite(async () => {
+    await updateToolDraft(draft.id, {
+      toolName: draft.toolName,
+      displayName,
+      riskLevel: draft.riskLevel,
+      upstreamId: draft.upstreamId,
+      httpMethod: draft.httpMethod,
+      path: path.trim(),
+      requestConfig: draft.requestConfig,
+      responseConfig: draft.responseConfig,
+    })
+    await refreshTools()
+  }, '工具草稿已更新，需要重新校验')
+}
+
+async function publishDraft(draft: ToolDraft) {
+  await runWrite(async () => {
+    await publishToolDraft(draft.id)
+    await refreshTools()
+  }, '工具版本已发布')
+}
+
+async function copyVersion(version: ToolVersion) {
+  await runWrite(async () => {
+    await createDraftFromVersion(version.id)
+    await refreshTools()
+  }, '已从发布版本创建新草稿，原版本保持不变')
+}
 </script>
 
 <template>
@@ -287,6 +403,89 @@ async function saveProfile() {
           <div><dt>最近修改时间</dt><dd>{{ new Date(profile.updatedAt).toLocaleString('zh-CN') }}</dd></div>
         </dl>
       </form>
+    </section>
+
+    <section class="card" aria-labelledby="tool-management-title">
+      <h2 id="tool-management-title">静态上游与手工工具</h2>
+      <p v-if="!canWrite" class="readonly-note">审计查看者可读取上游、草稿和发布版本，不能登记、校验或发布。</p>
+
+      <div class="management-grid">
+        <article>
+          <h3>静态 HTTP 上游</h3>
+          <form v-if="canWrite" class="compact-form" @submit.prevent="submitUpstream">
+            <label>服务标识<input v-model="newServiceId" required placeholder="inventory" /></label>
+            <label>显示名称<input v-model="newUpstreamName" required /></label>
+            <label>基础地址<input v-model="newBaseUrl" required type="url" placeholder="https://inventory.internal" /></label>
+            <button :disabled="loading" type="submit">登记并检测</button>
+          </form>
+          <ul>
+            <li v-for="upstream in upstreams" :key="upstream.id">
+              <span>
+                <strong>{{ upstream.displayName }}（{{ upstream.serviceId }}）</strong>
+                <small>{{ upstream.baseUrl }}</small>
+                <small :class="upstream.connectivityStatus === 'CONNECTED' ? 'status-ok' : 'status-failed'">
+                  {{ upstream.connectivityStatus === 'CONNECTED' ? '连通' : '失败：' + upstream.connectivityError }}
+                </small>
+              </span>
+              <button v-if="canWrite" type="button" @click="recheckUpstream(upstream)">重新检测</button>
+            </li>
+          </ul>
+        </article>
+
+        <article>
+          <h3>工具草稿</h3>
+          <form v-if="canWrite" class="compact-form" @submit.prevent="submitToolDraft">
+            <label>稳定名称<input v-model="newToolName" required placeholder="inventory.read" /></label>
+            <label>显示名称<input v-model="newToolDisplayName" required /></label>
+            <label>风险等级
+              <select v-model="newRiskLevel">
+                <option value="READ_ONLY">只读</option>
+                <option value="WRITE">写入</option>
+                <option value="DESTRUCTIVE">破坏性（禁止发布）</option>
+              </select>
+            </label>
+            <label>已登记上游
+              <select v-model="newUpstreamId" required>
+                <option v-for="upstream in upstreams" :key="upstream.id" :value="upstream.id">
+                  {{ upstream.serviceId }}
+                </option>
+              </select>
+            </label>
+            <label>HTTP 方法<input v-model="newHttpMethod" placeholder="GET" /></label>
+            <label>相对路径<input v-model="newPath" placeholder="/inventory" /></label>
+            <button :disabled="loading || !upstreams.length" type="submit">保存草稿</button>
+          </form>
+          <ul>
+            <li v-for="draft in toolDrafts" :key="draft.id">
+              <span>
+                <strong>{{ draft.displayName }}（{{ draft.toolName }}）</strong>
+                <small>{{ draft.riskLevel }} · {{ draft.httpMethod || '未配置方法' }} {{ draft.path || '未配置路径' }}</small>
+                <small>校验：{{ draft.validationStatus }} {{ draft.validationErrors.join('；') }}</small>
+              </span>
+              <span v-if="canWrite" class="actions">
+                <button type="button" @click="editDraft(draft)">编辑</button>
+                <button type="button" @click="validateDraft(draft)">校验</button>
+                <button v-if="draft.riskLevel !== 'DESTRUCTIVE'" type="button" @click="publishDraft(draft)">发布</button>
+                <small v-else class="status-failed">禁止发布</small>
+              </span>
+            </li>
+          </ul>
+        </article>
+
+        <article>
+          <h3>不可变发布版本</h3>
+          <ul>
+            <li v-for="version in toolVersions" :key="version.id">
+              <span>
+                <strong>{{ version.toolName }} · v{{ version.versionNumber }}</strong>
+                <small>{{ version.displayName }} · {{ version.current ? '当前版本' : '历史版本' }}</small>
+                <small>{{ version.httpMethod }} {{ version.path }} · {{ version.publishedBy }}</small>
+              </span>
+              <button v-if="canWrite" type="button" @click="copyVersion(version)">创建新草稿</button>
+            </li>
+          </ul>
+        </article>
+      </div>
     </section>
 
     <section class="card" aria-labelledby="authorization-title">

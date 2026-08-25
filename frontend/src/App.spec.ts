@@ -35,6 +35,9 @@ describe('控制面角色冒烟流程', () => {
       .mockImplementationOnce(() => jsonResponse([]))
       .mockImplementationOnce(() => jsonResponse([]))
       .mockImplementationOnce(() => jsonResponse([]))
+      .mockImplementationOnce(() => jsonResponse([]))
+      .mockImplementationOnce(() => jsonResponse([]))
+      .mockImplementationOnce(() => jsonResponse([]))
       .mockImplementationOnce(() => jsonResponse({ ...profile, name: '研发 MCP 网关', updatedBy: 'admin' }))
 
     const wrapper = mount(App)
@@ -67,6 +70,9 @@ describe('控制面角色冒烟流程', () => {
       .mockImplementationOnce(() => jsonResponse([]))
       .mockImplementationOnce(() => jsonResponse([]))
       .mockImplementationOnce(() => jsonResponse([]))
+      .mockImplementationOnce(() => jsonResponse([]))
+      .mockImplementationOnce(() => jsonResponse([]))
+      .mockImplementationOnce(() => jsonResponse([]))
 
     const wrapper = mount(App)
     await wrapper.get('input').setValue('auditor')
@@ -95,6 +101,9 @@ describe('控制面角色冒烟流程', () => {
         csrfToken: 'csrf-admin',
       }))
       .mockImplementationOnce(() => jsonResponse(profile))
+      .mockImplementationOnce(() => jsonResponse([]))
+      .mockImplementationOnce(() => jsonResponse([]))
+      .mockImplementationOnce(() => jsonResponse([]))
       .mockImplementationOnce(() => jsonResponse([]))
       .mockImplementationOnce(() => jsonResponse([]))
       .mockImplementationOnce(() => jsonResponse([]))
@@ -142,6 +151,9 @@ describe('控制面角色冒烟流程', () => {
       .mockImplementationOnce(() => jsonResponse([existingAgent]))
       .mockImplementationOnce(() => jsonResponse([]))
       .mockImplementationOnce(() => jsonResponse([]))
+      .mockImplementationOnce(() => jsonResponse([]))
+      .mockImplementationOnce(() => jsonResponse([]))
+      .mockImplementationOnce(() => jsonResponse([]))
       .mockImplementationOnce(() => jsonResponse(updatedAgent))
       .mockImplementationOnce(() => jsonResponse([updatedAgent]))
       .mockImplementationOnce(() => jsonResponse([]))
@@ -187,6 +199,9 @@ describe('控制面角色冒烟流程', () => {
       .mockImplementationOnce(() => jsonResponse([agent]))
       .mockImplementationOnce(() => jsonResponse([role]))
       .mockImplementationOnce(() => jsonResponse([toolSet]))
+      .mockImplementationOnce(() => jsonResponse([]))
+      .mockImplementationOnce(() => jsonResponse([]))
+      .mockImplementationOnce(() => jsonResponse([]))
       .mockImplementationOnce(() => emptyResponse())
       .mockImplementationOnce(() => jsonResponse([{ ...agent, roleIds: [5] }]))
       .mockImplementationOnce(() => jsonResponse([role]))
@@ -202,5 +217,142 @@ describe('控制面角色冒烟流程', () => {
 
     expect(fetchMock).toHaveBeenCalledWith('/api/management/agents/3/roles/5', expect.objectContaining({ method: 'POST' }))
     expect(wrapper.text()).toContain('已授予 Agent 角色')
+  })
+
+  it('管理员可以登记上游、校验发布工具并从版本创建新草稿', async () => {
+    let upstreams: unknown[] = []
+    let drafts: unknown[] = []
+    let versions: unknown[] = []
+    const upstream = {
+      id: 11,
+      serviceId: 'inventory',
+      displayName: '库存服务',
+      baseUrl: 'http://inventory.internal',
+      connectivityStatus: 'CONNECTED',
+      connectivityError: '',
+      lastCheckedAt: '2026-08-25T00:00:00Z',
+    }
+    const draft = {
+      id: 21,
+      toolName: 'inventory.read',
+      displayName: '读取库存',
+      riskLevel: 'READ_ONLY',
+      upstreamId: 11,
+      serviceId: 'inventory',
+      httpMethod: 'GET',
+      path: '/inventory',
+      requestConfig: '{"query":"sku"}',
+      responseConfig: '{"items":"$.items"}',
+      validationStatus: 'UNVALIDATED',
+      validationErrors: [],
+    }
+    const version = {
+      id: 31,
+      toolName: 'inventory.read',
+      versionNumber: 1,
+      displayName: '读取库存',
+      riskLevel: 'READ_ONLY',
+      upstreamId: 11,
+      serviceId: 'inventory',
+      httpMethod: 'GET',
+      path: '/inventory',
+      requestConfig: '{"query":"sku"}',
+      responseConfig: '{"items":"$.items"}',
+      current: true,
+      publishedBy: 'admin',
+      publishedAt: '2026-08-25T00:00:00Z',
+    }
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation((input, options) => {
+      const path = String(input)
+      const method = options?.method ?? 'GET'
+      if (path === '/api/auth/login') {
+        return jsonResponse({ username: 'admin', role: 'PLATFORM_ADMIN', csrfToken: 'csrf-admin' })
+      }
+      if (path === '/api/management/gateway-profile') return jsonResponse(profile)
+      if (path === '/api/management/agents' || path === '/api/management/roles' || path === '/api/management/tool-sets') {
+        return jsonResponse([])
+      }
+      if (path === '/api/management/upstreams' && method === 'GET') return jsonResponse(upstreams)
+      if (path === '/api/management/upstreams' && method === 'POST') {
+        upstreams = [upstream]
+        return jsonResponse(upstream, 201)
+      }
+      if (path === '/api/management/tool-drafts' && method === 'GET') return jsonResponse(drafts)
+      if (path === '/api/management/tool-drafts' && method === 'POST') {
+        drafts = [draft]
+        return jsonResponse(draft, 201)
+      }
+      if (path === '/api/management/tool-drafts/21/validate') {
+        drafts = [{ ...draft, validationStatus: 'VALID' }]
+        return jsonResponse(drafts[0])
+      }
+      if (path === '/api/management/tool-drafts/22' && method === 'PUT') {
+        const body = JSON.parse(String(options?.body))
+        drafts = [{ ...draft, ...body, id: 22 }]
+        return jsonResponse(drafts[0])
+      }
+      if (path === '/api/management/tool-drafts/21/publish') {
+        drafts = []
+        versions = [version]
+        return jsonResponse(version, 201)
+      }
+      if (path === '/api/management/tool-versions' && method === 'GET') return jsonResponse(versions)
+      if (path === '/api/management/tool-versions/31/draft') {
+        drafts = [{ ...draft, id: 22 }]
+        return jsonResponse(drafts[0], 201)
+      }
+      throw new Error(`未模拟请求：${method} ${path}`)
+    })
+
+    const wrapper = mount(App)
+    await wrapper.get('form').trigger('submit')
+    await flushPromises()
+
+    const upstreamForm = wrapper.findAll('form').find(form => form.text().includes('服务标识'))!
+    const upstreamInputs = upstreamForm.findAll('input')
+    await upstreamInputs[0].setValue('inventory')
+    await upstreamInputs[1].setValue('库存服务')
+    await upstreamInputs[2].setValue('http://inventory.internal')
+    await upstreamForm.trigger('submit')
+    await flushPromises()
+    expect(wrapper.text()).toContain('连通')
+
+    const draftForm = wrapper.findAll('form').find(form => form.text().includes('稳定名称'))!
+    const draftInputs = draftForm.findAll('input')
+    await draftInputs[0].setValue('inventory.read')
+    await draftInputs[1].setValue('读取库存')
+    await draftInputs[2].setValue('GET')
+    await draftInputs[3].setValue('/inventory')
+    await draftForm.trigger('submit')
+    await flushPromises()
+
+    const draftArticle = wrapper.findAll('article').find(article => article.get('h3').text() === '工具草稿')!
+    await draftArticle.findAll('button').find(button => button.text() === '校验')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('VALID')
+    await draftArticle.findAll('button').find(button => button.text() === '发布')!.trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('inventory.read · v1')
+
+    const versionArticle = wrapper.findAll('article').find(article => article.get('h3').text() === '不可变发布版本')!
+    await versionArticle.get('button').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('已从发布版本创建新草稿')
+    expect(fetchMock).toHaveBeenCalledWith('/api/management/tool-versions/31/draft', expect.objectContaining({ method: 'POST' }))
+
+    vi.spyOn(window, 'prompt')
+      .mockReturnValueOnce('读取库存新版')
+      .mockReturnValueOnce('/inventory/v2')
+    const copiedDraftArticle = wrapper.findAll('article').find(article => article.get('h3').text() === '工具草稿')!
+    await copiedDraftArticle.findAll('button').find(button => button.text() === '编辑')!.trigger('click')
+    await flushPromises()
+    const updateCall = fetchMock.mock.calls.find(([input, options]) =>
+      String(input) === '/api/management/tool-drafts/22' && options?.method === 'PUT',
+    )
+    expect(updateCall).toBeDefined()
+    expect(JSON.parse(String(updateCall?.[1]?.body))).toMatchObject({
+      requestConfig: '{"query":"sku"}',
+      responseConfig: '{"items":"$.items"}',
+    })
   })
 })

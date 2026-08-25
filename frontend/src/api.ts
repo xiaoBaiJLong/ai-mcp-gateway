@@ -46,6 +46,63 @@ export interface PermissionResult {
   toolNames: string[]
 }
 
+export type RiskLevel = 'READ_ONLY' | 'WRITE' | 'DESTRUCTIVE'
+export type ConnectivityStatus = 'CONNECTED' | 'FAILED'
+export type ValidationStatus = 'UNVALIDATED' | 'VALID' | 'INVALID'
+
+export interface StaticUpstream {
+  id: number
+  serviceId: string
+  displayName: string
+  baseUrl: string
+  connectivityStatus: ConnectivityStatus
+  connectivityError: string
+  lastCheckedAt: string
+}
+
+export interface ToolDraft {
+  id: number
+  toolName: string
+  displayName: string
+  riskLevel: RiskLevel
+  upstreamId: number
+  serviceId: string
+  httpMethod: string
+  path: string
+  requestConfig: string
+  responseConfig: string
+  validationStatus: ValidationStatus
+  validationErrors: string[]
+}
+
+export interface ToolVersion {
+  id: number
+  toolName: string
+  versionNumber: number
+  displayName: string
+  riskLevel: RiskLevel
+  upstreamId: number
+  serviceId: string
+  httpMethod: string
+  path: string
+  requestConfig: string
+  responseConfig: string
+  current: boolean
+  publishedBy: string
+  publishedAt: string
+}
+
+export interface ToolDraftInput {
+  toolName: string
+  displayName: string
+  riskLevel: RiskLevel
+  upstreamId: number
+  httpMethod: string
+  path: string
+  requestConfig?: string
+  responseConfig?: string
+}
+
 interface ApiErrorBody {
   message?: string
 }
@@ -192,4 +249,57 @@ export function removeRoleToolSet(roleId: number, toolSetId: number): Promise<vo
 
 export function getAgentPermissions(agentId: number): Promise<PermissionResult> {
   return request<PermissionResult>(`/api/management/agents/${agentId}/permissions`)
+}
+
+export function getUpstreams(): Promise<StaticUpstream[]> {
+  return request<StaticUpstream[]>('/api/management/upstreams')
+}
+
+export function createUpstream(
+  serviceId: string,
+  displayName: string,
+  baseUrl: string,
+): Promise<StaticUpstream> {
+  return request<StaticUpstream>('/api/management/upstreams', {
+    method: 'POST',
+    body: JSON.stringify({ serviceId, displayName, baseUrl }),
+  })
+}
+
+export function checkUpstream(id: number): Promise<StaticUpstream> {
+  return request<StaticUpstream>(`/api/management/upstreams/${id}/check`, { method: 'POST' })
+}
+
+export function getToolDrafts(): Promise<ToolDraft[]> {
+  return request<ToolDraft[]>('/api/management/tool-drafts')
+}
+
+export function createToolDraft(input: ToolDraftInput): Promise<ToolDraft> {
+  return request<ToolDraft>('/api/management/tool-drafts', {
+    method: 'POST',
+    body: JSON.stringify(input),
+  })
+}
+
+export function updateToolDraft(id: number, input: ToolDraftInput): Promise<ToolDraft> {
+  return request<ToolDraft>(`/api/management/tool-drafts/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(input),
+  })
+}
+
+export function validateToolDraft(id: number): Promise<ToolDraft> {
+  return request<ToolDraft>(`/api/management/tool-drafts/${id}/validate`, { method: 'POST' })
+}
+
+export function publishToolDraft(id: number): Promise<ToolVersion> {
+  return request<ToolVersion>(`/api/management/tool-drafts/${id}/publish`, { method: 'POST' })
+}
+
+export function getToolVersions(): Promise<ToolVersion[]> {
+  return request<ToolVersion[]>('/api/management/tool-versions')
+}
+
+export function createDraftFromVersion(id: number): Promise<ToolDraft> {
+  return request<ToolDraft>(`/api/management/tool-versions/${id}/draft`, { method: 'POST' })
 }
