@@ -7,7 +7,7 @@
 
 * { box-sizing: border-box; }
 body { margin: 0; min-width: 320px; min-height: 100vh; }
-button, input { font: inherit; }
+button, input, select, textarea { font: inherit; }
 
 .shell {
   width: min(760px, calc(100% - 32px));
@@ -31,7 +31,8 @@ button, input { font: inherit; }
 h2 { margin: 0 0 22px; }
 form { display: grid; gap: 18px; }
 label { display: grid; gap: 8px; font-weight: 650; }
-input { width: 100%; padding: 11px 12px; border: 1px solid #9db6aa; border-radius: 8px; color: inherit; background: #fff; }
+input, select, textarea { width: 100%; padding: 11px 12px; border: 1px solid #9db6aa; border-radius: 8px; color: inherit; background: #fff; }
+textarea { min-height: 88px; resize: vertical; }
 input[readonly] { background: #f1f5f3; color: #51645c; }
 button { justify-self: start; padding: 10px 20px; border: 0; border-radius: 8px; color: white; background: #157a57; font-weight: 700; cursor: pointer; }
 button:disabled { opacity: .55; cursor: wait; }
@@ -46,3 +47,22 @@ dd { margin: 0; }
 .message { padding: 12px 16px; border-radius: 10px; }
 .error { color: #8b2525; background: #fdecec; }
 .success { color: #176944; background: #e5f5ec; }
+.management-grid, .relation-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; margin-top: 22px; }
+.management-grid article, .relation-grid form { min-width: 0; padding: 16px; border: 1px solid #dbe5e0; border-radius: 12px; }
+h3 { margin: 0 0 14px; }
+.compact-form { gap: 12px; }
+ul { margin: 16px 0 0; padding: 0; list-style: none; }
+li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 0; border-bottom: 1px solid #edf1ef; }
+li span:first-child { display: grid; gap: 3px; min-width: 0; }
+small { overflow-wrap: anywhere; color: #60736b; }
+.actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.actions button, li button, .credential button { padding: 7px 10px; font-size: 13px; }
+.credential { display: grid; gap: 10px; margin: 18px 0; padding: 16px; border: 2px solid #d39b2a; border-radius: 10px; background: #fff8e8; }
+.credential code { overflow-wrap: anywhere; user-select: all; }
+.permission-result { padding: 10px; border-radius: 8px; background: #f1f5f3; overflow-wrap: anywhere; }
+
+@media (max-width: 560px) {
+  .shell { width: min(100% - 20px, 760px); padding: 20px 0; }
+  .card { padding: 20px; }
+  .session-header, li { align-items: flex-start; flex-direction: column; }
+}

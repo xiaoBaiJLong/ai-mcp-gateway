@@ -45,10 +45,27 @@ npm run dev
 
 浏览器访问 `http://localhost:5173`。本地固定账号如下：
 
-- 平台管理员：`admin / 666666`，可查看并修改网关基本信息。
-- 审计查看者：`auditor / 666666`，只能查看；保存入口不会显示，直接调用写 API 会得到 `403 FORBIDDEN`。
+- 平台管理员：`admin / 666666`，可管理网关基本信息、Agent、角色、工具集和授权关系。
+- 审计查看者：`auditor / 666666`，只能查看；写入入口不会显示，直接调用任何管理写 API 都会得到 `403 FORBIDDEN`。
 
-前端通过 Vite 代理调用同一个公开 REST API，不包含独立后端逻辑。控制面源码位于后端 `management` 包；MCP 运行时边界位于 `runtime` 包，本 ticket 不包含工具或 Agent 能力。
+前端通过 Vite 代理调用同一个公开 REST API，不包含独立后端逻辑。控制面源码位于后端 `management` 包；MCP 运行时边界位于 `runtime` 包。当前只提供权限管理和权限结果，不包含 `/mcp`、工具发现或工具调用。
+
+### Agent 权限管理
+
+控制台可以完成以下关键流程：
+
+- 创建、查看、修改和删除 Agent、角色与工具集。
+- 为 Agent 授予或撤销角色，为角色关联或撤销工具集。
+- 查看 Agent 当前允许的稳定工具名称并集；没有明确关联时结果为空。
+- 创建 Agent 或重置凭据时查看一次 API Key。关闭提示后，后续查询只返回非秘密前缀，不再返回明文。
+
+对应的公开管理 REST API 位于：
+
+- `/api/management/agents`，包括 API Key 重置、角色关联和 `/permissions` 权限结果。
+- `/api/management/roles`，包括工具集关联。
+- `/api/management/tool-sets`，成员以 `<服务标识>.<工具标识>` 的明确名称列表保存。
+
+每个 API Key 由 256 位安全随机数生成。数据库只保存 `BINARY(32)` SHA-256 摘要和可识别 Agent 的短前缀；认证摘要使用恒定时间比较。重置在数据库事务中直接替换摘要，因此旧 Key 立即失效。应用不会记录或审计 API Key 明文。
 
 Compose 暴露的 MySQL、Redis 和 Nacos 端口均只绑定 `127.0.0.1`。Nacos 默认使用官方 `nacos/nacos-server:v2.5.3` 镜像；受限网络环境可以通过 `NACOS_IMAGE` 覆盖为经过核验的兼容镜像，而不修改仓库默认值。
 
@@ -64,11 +81,11 @@ Compose 暴露的 MySQL、Redis 和 Nacos 端口均只绑定 `127.0.0.1`。Nacos
 
 ### Flyway 重启验证
 
-首次在空数据卷启动后端时，日志会显示执行 `V1__create_gateway_profile.sql`。停止后端并再次执行 `mvn spring-boot:run`，Flyway 会识别已迁移数据库，不重复建表且应用应正常启动。不要手工修改 `flyway_schema_history`。
+首次在空数据卷启动后端时，日志会显示执行 `V1__create_gateway_profile.sql` 和 `V2__create_agent_authorization.sql`。停止后端并再次执行 `mvn spring-boot:run`，Flyway 会识别已迁移数据库，不重复建表且应用应正常启动。不要手工修改 `flyway_schema_history`。
 
 ### 自动化验证
 
-后端集成测试使用 H2 的 MySQL 兼容模式执行同一份 Flyway 迁移，覆盖双角色登录、错误凭证、管理员写入、审计查看者越权与状态不变、迁移重复执行和健康端点：
+后端集成测试使用 H2 的 MySQL 兼容模式执行同一份 Flyway 迁移，覆盖 API Key 一次展示与摘要存储、错误 Key、重置失效、默认拒绝、多角色并集、撤销授权、工具集固定成员、审计查看者只读、迁移重复执行和健康端点：
 
 ```powershell
 cd backend
@@ -76,7 +93,18 @@ mvn test
 mvn package
 ```
 
-前端测试覆盖登录、平台管理员写入入口和审计查看者只读状态：
+如有专用的空 MySQL 验证库，可以执行真实 MySQL 数据类型接缝测试。该测试会运行 Flyway 并写入随机命名的测试 Agent，不要指向生产库：
+
+```powershell
+$env:MYSQL_IT_URL='jdbc:mysql://127.0.0.1:3306/mcp_gateway_test?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC'
+$env:MYSQL_IT_USERNAME='mcp_gateway'
+$env:MYSQL_IT_PASSWORD='mcp_gateway'
+mvn -Dtest=MySqlAgentAuthorizationIntegrationTest test
+```
+
+该测试直接验证 MySQL `BINARY(32)` 摘要的创建、认证、重置失效和 Agent 名称唯一冲突语义；未设置 `MYSQL_IT_URL` 时自动跳过。
+
+前端测试覆盖登录、平台管理员写入入口、Agent API Key 一次展示和审计查看者只读状态：
 
 ```powershell
 cd frontend
