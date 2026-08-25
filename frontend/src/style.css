@@ -1,0 +1,48 @@
+:root {
+  color: #14241f;
+  background: #edf3ef;
+  font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-synthesis: none;
+}
+
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 320px; min-height: 100vh; }
+button, input { font: inherit; }
+
+.shell {
+  width: min(760px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 56px 0;
+}
+
+.card {
+  margin-bottom: 18px;
+  padding: 28px;
+  border: 1px solid #c9d8d0;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 12px 36px rgb(28 61 47 / 8%);
+}
+
+.brand { background: #173e32; color: #f3fff8; }
+.brand h1 { margin: 5px 0 8px; font-size: clamp(30px, 6vw, 46px); }
+.brand p:last-child { margin-bottom: 0; color: #c7ded4; }
+.eyebrow { margin: 0; color: #4e7e6c; font-size: 12px; font-weight: 700; letter-spacing: .14em; }
+h2 { margin: 0 0 22px; }
+form { display: grid; gap: 18px; }
+label { display: grid; gap: 8px; font-weight: 650; }
+input { width: 100%; padding: 11px 12px; border: 1px solid #9db6aa; border-radius: 8px; color: inherit; background: #fff; }
+input[readonly] { background: #f1f5f3; color: #51645c; }
+button { justify-self: start; padding: 10px 20px; border: 0; border-radius: 8px; color: white; background: #157a57; font-weight: 700; cursor: pointer; }
+button:disabled { opacity: .55; cursor: wait; }
+.hint { margin: 12px 0 0; color: #60736b; font-size: 14px; }
+.session-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; }
+.role { padding: 6px 10px; border-radius: 999px; background: #e5f5ec; color: #176944; font-size: 13px; font-weight: 700; }
+.readonly-note { margin: 0; padding: 12px; border-radius: 8px; background: #f5f1e7; color: #695625; }
+dl { margin: 8px 0 0; color: #60736b; font-size: 14px; }
+dl div { display: flex; gap: 8px; margin-top: 7px; }
+dt { font-weight: 700; }
+dd { margin: 0; }
+.message { padding: 12px 16px; border-radius: 10px; }
+.error { color: #8b2525; background: #fdecec; }
+.success { color: #176944; background: #e5f5ec; }
