@@ -48,4 +48,8 @@ public final class ToolModels {
     public record StoredToolView(String id, String name, String description, boolean enabled, Instant createdAt,
             String serviceName, String method, String path, String inputSchema) {
     }
+
+    public record RuntimeToolRecord(String id, String name, String description, String inputSchema,
+            String serviceName, String method, String path) {
+    }
 }

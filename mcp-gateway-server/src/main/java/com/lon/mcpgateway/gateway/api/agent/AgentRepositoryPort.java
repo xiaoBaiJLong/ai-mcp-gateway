@@ -3,6 +3,7 @@ package com.lon.mcpgateway.gateway.api.agent;
 import com.lon.mcpgateway.gateway.types.agent.AgentModels.AgentRecord;
 import com.lon.mcpgateway.gateway.types.agent.AgentModels.AgentToolRecord;
 import com.lon.mcpgateway.gateway.types.agent.AgentModels.CredentialRecord;
+import com.lon.mcpgateway.gateway.types.agent.AgentModels.RuntimeAgentRecord;
 import java.util.List;
 
 public interface AgentRepositoryPort {
@@ -19,6 +20,8 @@ public interface AgentRepositoryPort {
     List<CredentialRecord> findCredentials(String agentId);
 
     CredentialRecord findCurrentCredential(String agentId);
+
+    RuntimeAgentRecord findEnabledAgentByKeyHash(String keyHash);
 
     void disableEnabledCredentials(String agentId);
 

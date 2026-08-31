@@ -30,6 +30,12 @@ interface ToolMapper {
             "</script>"})
     List<EnabledToolRow> findEnabledToolsByIds(@Param("toolIds") List<String> toolIds);
 
+    @Select("select t.id, t.name, t.description, m.input_schema as inputSchema, m.service_name as serviceName, m.http_method as method, m.normalized_path as path from agent_tool_assignments a join mcp_tools t on t.id = a.tool_id join http_mappings m on m.tool_id = t.id where a.agent_id = #{agentId} and t.enabled = true order by t.created_at")
+    List<RuntimeToolRow> findEnabledToolsForAgent(String agentId);
+
+    @Select("select t.id, t.name, t.description, m.input_schema as inputSchema, m.service_name as serviceName, m.http_method as method, m.normalized_path as path from agent_tool_assignments a join mcp_tools t on t.id = a.tool_id join http_mappings m on m.tool_id = t.id where a.agent_id = #{agentId} and t.enabled = true and t.name = #{toolName}")
+    RuntimeToolRow findEnabledToolForAgent(String agentId, String toolName);
+
     record StoredTool(String id, String name, String nameHash, String description, boolean enabled, Instant createdAt) {
     }
 
@@ -42,5 +48,9 @@ interface ToolMapper {
     }
 
     record EnabledToolRow(String id, String name, String description, boolean enabled) {
+    }
+
+    record RuntimeToolRow(String id, String name, String description, String inputSchema, String serviceName, String method,
+            String path) {
     }
 }

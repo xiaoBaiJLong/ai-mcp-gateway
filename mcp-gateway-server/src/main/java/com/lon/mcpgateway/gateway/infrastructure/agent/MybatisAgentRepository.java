@@ -4,6 +4,7 @@ import com.lon.mcpgateway.gateway.api.agent.AgentRepositoryPort;
 import com.lon.mcpgateway.gateway.types.agent.AgentModels.AgentRecord;
 import com.lon.mcpgateway.gateway.types.agent.AgentModels.AgentToolRecord;
 import com.lon.mcpgateway.gateway.types.agent.AgentModels.CredentialRecord;
+import com.lon.mcpgateway.gateway.types.agent.AgentModels.RuntimeAgentRecord;
 import java.util.List;
 import org.springframework.stereotype.Repository;
 
@@ -49,6 +50,12 @@ public class MybatisAgentRepository implements AgentRepositoryPort {
     @Override
     public CredentialRecord findCurrentCredential(String agentId) {
         return credential(mapper.findCurrentCredential(agentId));
+    }
+
+    @Override
+    public RuntimeAgentRecord findEnabledAgentByKeyHash(String keyHash) {
+        AgentMapper.RuntimeAgentRow row = mapper.findEnabledAgentByKeyHash(keyHash);
+        return row == null ? null : new RuntimeAgentRecord(row.id());
     }
 
     @Override

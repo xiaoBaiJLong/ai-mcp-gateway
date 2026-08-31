@@ -4,6 +4,7 @@ import com.lon.mcpgateway.gateway.api.tool.McpToolRepositoryPort;
 import com.lon.mcpgateway.gateway.types.tool.ToolModels.HttpMappingRecord;
 import com.lon.mcpgateway.gateway.types.tool.ToolModels.McpToolRecord;
 import com.lon.mcpgateway.gateway.types.tool.ToolModels.StoredToolView;
+import com.lon.mcpgateway.gateway.types.tool.ToolModels.RuntimeToolRecord;
 import java.util.List;
 import org.springframework.stereotype.Repository;
 
@@ -41,5 +42,20 @@ public class MybatisMcpToolRepository implements McpToolRepositoryPort {
     @Override
     public List<String> findEnabledToolIds(List<String> toolIds) {
         return mapper.findEnabledToolsByIds(toolIds).stream().map(ToolMapper.EnabledToolRow::id).toList();
+    }
+
+    @Override
+    public List<RuntimeToolRecord> findEnabledToolsForAgent(String agentId) {
+        return mapper.findEnabledToolsForAgent(agentId).stream()
+                .map(row -> new RuntimeToolRecord(row.id(), row.name(), row.description(), row.inputSchema(), row.serviceName(),
+                        row.method(), row.path()))
+                .toList();
+    }
+
+    @Override
+    public RuntimeToolRecord findEnabledToolForAgent(String agentId, String toolName) {
+        ToolMapper.RuntimeToolRow row = mapper.findEnabledToolForAgent(agentId, toolName);
+        return row == null ? null : new RuntimeToolRecord(row.id(), row.name(), row.description(), row.inputSchema(), row.serviceName(),
+                row.method(), row.path());
     }
 }

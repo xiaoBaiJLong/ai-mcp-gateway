@@ -43,4 +43,7 @@ public final class AgentModels {
 
     public record AgentToolRecord(String id, String name, String description, boolean enabled) {
     }
+
+    public record RuntimeAgentRecord(String id) {
+    }
 }

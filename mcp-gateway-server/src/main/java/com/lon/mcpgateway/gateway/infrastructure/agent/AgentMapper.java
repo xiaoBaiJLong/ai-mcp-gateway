@@ -31,6 +31,9 @@ interface AgentMapper {
     @Select("select c.id, c.agent_id as agentId, c.key_prefix as prefix, c.created_at as createdAt, c.enabled from agent_credentials c join agents a on a.current_credential_id = c.id where a.id = #{agentId}")
     CredentialRow findCurrentCredential(String agentId);
 
+    @Select("select a.id from agents a join agent_credentials c on c.id = a.current_credential_id where c.key_hash = #{keyHash} and c.enabled = true")
+    RuntimeAgentRow findEnabledAgentByKeyHash(String keyHash);
+
     @Update("update agent_credentials set enabled = false where agent_id = #{agentId} and enabled = true")
     void disableEnabledCredentials(String agentId);
 
@@ -59,6 +62,9 @@ interface AgentMapper {
     }
 
     record CredentialRow(String id, String agentId, String prefix, Instant createdAt, boolean enabled) {
+    }
+
+    record RuntimeAgentRow(String id) {
     }
 
     record ToolRow(String id, String name, String description, boolean enabled) {
