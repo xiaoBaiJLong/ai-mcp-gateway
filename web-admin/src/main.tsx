@@ -59,7 +59,14 @@ function App() {
     try { setAgents(await request<Agent[]>('/agents')); }
     catch (reason) { setError(reason instanceof Error ? reason.message : '无法读取智能体'); }
   };
-  useEffect(() => { void loadSources(); void loadTools(); }, []);
+  useEffect(() => {
+    if (page === 'tools') {
+      void loadSources();
+      void loadTools();
+    } else {
+      void loadAgents();
+    }
+  }, [page]);
 
   const loadOperations = async (name: string) => {
     setServiceName(name); setDraft(undefined);
@@ -117,7 +124,7 @@ function App() {
     <Layout style={{ minHeight: '100vh' }}>
       <Sider theme="light" width={220}>
         <Typography.Title level={4} style={{ padding: '20px 24px', margin: 0 }}>MCP 网关</Typography.Title>
-        <Menu selectedKeys={[page]} onClick={({ key }) => { if (key === 'agents') { setPage('agents'); void loadAgents(); } if (key === 'tools') setPage('tools'); }} items={[
+        <Menu selectedKeys={[page]} onClick={({ key }) => { if (key === 'agents') setPage('agents'); if (key === 'tools') setPage('tools'); }} items={[
           { key: 'tools', label: '工具配置' }, { key: 'manage', label: '工具管理', disabled: true },
           { key: 'collections', label: '工具集管理', disabled: true }, { key: 'agents', label: '智能体管理' },
           { key: 'validation', label: 'MCP 验证', disabled: true },
