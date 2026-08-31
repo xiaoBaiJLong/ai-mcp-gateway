@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import ReactDOM from 'react-dom/client';
 import { Alert, Button, ConfigProvider, Descriptions, Drawer, Form, Input, Layout, Menu, Select, Space, Switch, Table, Tag, Typography, message } from 'antd';
 import 'antd/dist/reset.css';
@@ -40,6 +40,7 @@ function App() {
   const [draftToolIds, setDraftToolIds] = useState<string[]>([]);
   const [revealedCredential, setRevealedCredential] = useState<RevealedCredential>();
   const [page, setPage] = useState<'tools' | 'agents'>('tools');
+  const pageRef = useRef(page);
   const [error, setError] = useState<string>();
   const [form] = Form.useForm<{ name: string; description: string }>();
   const [agentForm] = Form.useForm<{ name: string; description: string }>();
@@ -49,17 +50,19 @@ function App() {
       setError(undefined);
       const sources = await request<{ name: string }[]>('/tool-sources');
       setServices(sources.map((source) => source.name));
-    } catch (reason) { setError(reason instanceof Error ? reason.message : '无法获取业务服务'); }
+    } catch (reason) { if (pageRef.current === 'tools') setError(reason instanceof Error ? reason.message : '无法获取业务服务'); }
   };
   const loadTools = async () => {
     try { setTools(await request<Tool[]>('/tools')); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : '无法读取 MCP 工具'); }
+    catch (reason) { if (pageRef.current === 'tools') setError(reason instanceof Error ? reason.message : '无法读取 MCP 工具'); }
   };
   const loadAgents = async () => {
     try { setAgents(await request<Agent[]>('/agents')); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : '无法读取智能体'); }
+    catch (reason) { if (pageRef.current === 'agents') setError(reason instanceof Error ? reason.message : '无法读取智能体'); }
   };
   useEffect(() => {
+    pageRef.current = page;
+    setError(undefined);
     if (page === 'tools') {
       void loadSources();
       void loadTools();
