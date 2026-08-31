@@ -224,3 +224,7 @@ Gateway Administrator 保存确认后的 MCP Tool 默认处于启用状态。启
 **运行时授权**:
 MCP Gateway 在每次 `tools/list` 和 `tools/call` 请求时，根据有效 Agent Credential、Tool Assignment 和 Tool Status 作出的访问判定。无权或已禁用的 Tool 不对 Agent 展示，且直接调用必须以 JSON-RPC `-32602` 拒绝，不访问下游也不额外暴露 Tool 的存在状态。
 _Avoid_: 仅列表过滤、客户端自律
+
+**代码架构分层**:
+MCP Gateway 后端统一使用 `api`、`app`、`case`、`domain`、`infrastructure`、`trigger`、`types` 七层组织代码。`api` 只定义稳定的 Java 接口契约，不放 Controller、HTTP DTO、Mapper 或持久化 DTO；`trigger` 承载 REST Controller、MCP Streamable HTTP 等入站协议适配；`infrastructure` 承载 MyBatis Mapper、持久化 DTO、MySQL/Nacos/OpenAPI/下游 HTTP 等技术实现。其他层的详细职责和依赖方向以对应 ADR 为准。
+_Avoid_: Controller 放入 api、Mapper 放入 domain、跨层混放 DTO
