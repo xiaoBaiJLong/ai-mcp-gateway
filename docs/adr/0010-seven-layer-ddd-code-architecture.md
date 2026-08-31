@@ -2,6 +2,8 @@
 
 后端统一采用 `api`、`app`、`case`、`domain`、`infrastructure`、`trigger`、`types` 七层架构。每层内部可按 Tool、Agent、Tool Collection、服务发现、运行时调用和验证台等业务主题继续组织包结构。
 
+`case` 是架构层名称；由于 `case` 是 Java 保留关键字，源码目录和 Java 包名统一使用 `usecase` 表示该层。
+
 已确定的边界如下：
 
 - `api` 仅定义稳定接口契约，不承载任何 Controller、HTTP DTO、Mapper 或持久化 DTO。
@@ -20,4 +22,6 @@
 - `*DomainService`：供 `trigger` 直接调用的单一领域能力或业务规则。例如按 Tool ID 判断 Tool 是否启用，或校验 MCP Tool 名称是否全局唯一。
 - `*Port`：供 `case` 或 `domain` 调用、由 `infrastructure` 实现的外部能力抽象。例如 Tool 仓储、Nacos 服务发现、OpenAPI Document 获取和下游业务服务调用。这里的 Port 不是网络端口。
 
-接口的具体归属与完整依赖方向将在后续架构讨论中明确；不得通过将 Controller 或 Mapper 放入 `api` 来绕开当前边界。
+`api` 按业务领域组织，而不是按接口类别平铺；例如 Agent 相关接口放在 `api.agent`，Tool 相关接口放在 `api.tool`，服务发现与 OpenAPI 获取接口放在 `api.discovery`。每个领域包可同时包含其 `Case`、`DomainService` 与 `Port` 接口。
+
+当前依赖方向为：`trigger` 仅调用 `api` 接口；复杂写操作由 `usecase`（逻辑 `case`）实现 `Case` 并编排 `domain`；简单读取可由 `trigger` 调用 `DomainService` 接口；`infrastructure` 实现 `Port`；`app` 是唯一负责实例化和连接这些实现的层。不得通过将 Controller 或 Mapper 放入 `api` 来绕开当前边界。
