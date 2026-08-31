@@ -17,8 +17,14 @@ const { Header, Content, Sider } = Layout;
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`/api/v1${path}`, { headers: { 'Content-Type': 'application/json', ...options?.headers }, ...options });
-  const payload = (await response.json()) as ApiResponse<T>;
-  if (!response.ok) throw new Error(payload.message || '请求失败');
+  const text = await response.text();
+  let payload: ApiResponse<T>;
+  try {
+    payload = JSON.parse(text) as ApiResponse<T>;
+  } catch {
+    throw new Error(`服务返回了非 JSON 响应（HTTP ${response.status}）`);
+  }
+  if (!response.ok) throw new Error(payload.message || `请求失败（HTTP ${response.status}）`);
   return payload.data;
 }
 
