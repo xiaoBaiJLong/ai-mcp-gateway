@@ -1,0 +1,14 @@
+# 本机秘密与运行配置
+config/local.env
+.env.local
+
+# 本机构建与运行产物
+**/target/
+**/node_modules/
+web-admin/dist/
+.m2/
+logs/
+
+# 编辑器文件
+.idea/
+*.iml

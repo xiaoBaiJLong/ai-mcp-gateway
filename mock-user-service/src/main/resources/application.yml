@@ -1,0 +1,20 @@
+server:
+  port: ${MOCK_USER_SERVICE_PORT:8081}
+
+spring:
+  application:
+    name: mock-user-service
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR}
+        namespace: ${NACOS_NAMESPACE}
+        group: ${NACOS_GROUP}
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+
+mock:
+  user:
+    slow-response-delay: ${MOCK_USER_SLOW_RESPONSE_DELAY:PT16S}
