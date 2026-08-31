@@ -4,6 +4,21 @@ server:
 spring:
   application:
     name: mcp-gateway-server
+  datasource:
+    url: ${GATEWAY_DATABASE_URL:jdbc:mysql://127.0.0.1:3306/mcp_gateway?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai}
+    username: ${GATEWAY_DATABASE_USERNAME:mcp_gateway}
+    password: ${GATEWAY_DATABASE_PASSWORD:}
+  sql:
+    init:
+      mode: never
+
+gateway:
+  nacos:
+    server-addr: ${NACOS_SERVER_ADDR:127.0.0.1:8848}
+    namespace: ${NACOS_NAMESPACE:mcp-gateway-demo}
+    group: ${NACOS_GROUP:DEFAULT_GROUP}
+  openapi:
+    timeout: ${GATEWAY_OPENAPI_TIMEOUT:PT5S}
 
 management:
   endpoints:
