@@ -228,3 +228,7 @@ _Avoid_: 仅列表过滤、客户端自律
 **代码架构分层**:
 MCP Gateway 后端统一使用 `api`、`app`、`case`、`domain`、`infrastructure`、`trigger`、`types` 七层组织代码。`app` 只负责应用启动与装配；`api` 只定义稳定的 Java 接口契约，不放 Controller、HTTP DTO、Mapper 或持久化 DTO；`trigger` 承载 REST Controller、MCP Streamable HTTP 等入站协议适配；复杂业务流程由 `case` 编排 `domain` 能力，简单业务功能允许 `trigger` 直接调用 `domain`；`infrastructure` 承载 MyBatis Mapper、持久化 DTO、MySQL/Nacos/OpenAPI/下游 HTTP 等技术实现。跨层协作必须经由明确的接口契约，调用方不得依赖其他层的具体实现；`app` 负责把接口与实现装配起来。其他层的详细职责和依赖方向以对应 ADR 为准。
 _Avoid_: Controller 放入 api、Mapper 放入 domain、跨层混放 DTO、跨层依赖具体实现
+
+**分层接口类型**:
+`Case` 接口表达由 Trigger 发起的复杂业务操作流程；`DomainService` 接口表达可由 Trigger 直接调用的单一领域能力或业务规则；`Port` 接口表达 Case 或 Domain 对数据库、Nacos、OpenAPI 或下游业务服务等外部能力的抽象需求，并由 Infrastructure 实现。`Port` 不是网络端口。
+_Avoid_: Port 作为网络端口、复杂流程直接散落在 Trigger、领域代码直接使用基础设施实现

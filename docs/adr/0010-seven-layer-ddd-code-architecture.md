@@ -14,4 +14,10 @@
 
 所有跨层协作遵循依赖倒置：调用方依赖稳定接口契约，而不依赖其他层的具体实现；`app` 负责在启动时装配接口与实现。尤其是 `trigger` 不得直接依赖 MyBatis Mapper、Nacos Client、OpenAPI Client 或下游 HTTP Client 等 `infrastructure` 实现。
 
+接口按职责分为三类：
+
+- `*Case`：供 `trigger` 调用的复杂业务操作流程。例如发布智能体工具配置需要读取工具集、合并单个 Tool、去重、校验并原子替换智能体工具快照。
+- `*DomainService`：供 `trigger` 直接调用的单一领域能力或业务规则。例如按 Tool ID 判断 Tool 是否启用，或校验 MCP Tool 名称是否全局唯一。
+- `*Port`：供 `case` 或 `domain` 调用、由 `infrastructure` 实现的外部能力抽象。例如 Tool 仓储、Nacos 服务发现、OpenAPI Document 获取和下游业务服务调用。这里的 Port 不是网络端口。
+
 接口的具体归属与完整依赖方向将在后续架构讨论中明确；不得通过将 Controller 或 Mapper 放入 `api` 来绕开当前边界。
