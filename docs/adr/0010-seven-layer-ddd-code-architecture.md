@@ -12,4 +12,6 @@
 - `domain` 只承载领域模型和业务规则，不能依赖 Spring、MyBatis、Nacos 或 HTTP 客户端等技术实现。
 - `types` 只放跨层且确实通用的基础类型；不得成为无归属代码的收纳目录。
 
-接口的实现归属及完整依赖方向将在后续架构讨论中明确；不得通过将 Controller 或 Mapper 放入 `api` 来绕开当前边界。
+所有跨层协作遵循依赖倒置：调用方依赖稳定接口契约，而不依赖其他层的具体实现；`app` 负责在启动时装配接口与实现。尤其是 `trigger` 不得直接依赖 MyBatis Mapper、Nacos Client、OpenAPI Client 或下游 HTTP Client 等 `infrastructure` 实现。
+
+接口的具体归属与完整依赖方向将在后续架构讨论中明确；不得通过将 Controller 或 Mapper 放入 `api` 来绕开当前边界。

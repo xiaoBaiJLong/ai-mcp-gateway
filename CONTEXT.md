@@ -226,5 +226,5 @@ MCP Gateway 在每次 `tools/list` 和 `tools/call` 请求时，根据有效 Age
 _Avoid_: 仅列表过滤、客户端自律
 
 **代码架构分层**:
-MCP Gateway 后端统一使用 `api`、`app`、`case`、`domain`、`infrastructure`、`trigger`、`types` 七层组织代码。`app` 只负责应用启动与装配；`api` 只定义稳定的 Java 接口契约，不放 Controller、HTTP DTO、Mapper 或持久化 DTO；`trigger` 承载 REST Controller、MCP Streamable HTTP 等入站协议适配；复杂业务流程由 `case` 编排 `domain` 能力，简单业务功能允许 `trigger` 直接调用 `domain`；`infrastructure` 承载 MyBatis Mapper、持久化 DTO、MySQL/Nacos/OpenAPI/下游 HTTP 等技术实现。其他层的详细职责和依赖方向以对应 ADR 为准。
-_Avoid_: Controller 放入 api、Mapper 放入 domain、跨层混放 DTO
+MCP Gateway 后端统一使用 `api`、`app`、`case`、`domain`、`infrastructure`、`trigger`、`types` 七层组织代码。`app` 只负责应用启动与装配；`api` 只定义稳定的 Java 接口契约，不放 Controller、HTTP DTO、Mapper 或持久化 DTO；`trigger` 承载 REST Controller、MCP Streamable HTTP 等入站协议适配；复杂业务流程由 `case` 编排 `domain` 能力，简单业务功能允许 `trigger` 直接调用 `domain`；`infrastructure` 承载 MyBatis Mapper、持久化 DTO、MySQL/Nacos/OpenAPI/下游 HTTP 等技术实现。跨层协作必须经由明确的接口契约，调用方不得依赖其他层的具体实现；`app` 负责把接口与实现装配起来。其他层的详细职责和依赖方向以对应 ADR 为准。
+_Avoid_: Controller 放入 api、Mapper 放入 domain、跨层混放 DTO、跨层依赖具体实现
