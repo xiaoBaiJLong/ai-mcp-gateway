@@ -31,7 +31,7 @@ class HttpMcpToolInvoker implements McpToolInvocationPort {
 
     HttpMcpToolInvoker(BusinessServiceDiscoveryPort discovery, WebClient.Builder webClientBuilder, ObjectMapper objectMapper) {
         this.discovery = discovery;
-        this.webClient = webClientBuilder.build();
+        this.webClient = webClientBuilder.filter(new UserContextForwardingFilter()).build();
         this.objectMapper = objectMapper;
     }
 
@@ -44,7 +44,8 @@ class HttpMcpToolInvoker implements McpToolInvocationPort {
                 return result(503, null, "SERVICE_UNAVAILABLE");
             }
             WebClient.RequestBodySpec request = webClient.method(HttpMethod.valueOf(tool.method())).uri(uri(tool, arguments, instance))
-                    .headers(headers -> headers(headers, arguments, userContext));
+                    .attribute(UserContextForwardingFilter.USER_CONTEXT_ATTRIBUTE, userContext)
+                    .headers(headers -> headers(headers, arguments));
             JsonNode body = arguments.path("body");
             WebClient.RequestHeadersSpec<?> requestWithBody = body.isMissingNode() ? request : request.contentType(MediaType.APPLICATION_JSON)
                     .bodyValue(body);
@@ -91,14 +92,8 @@ class HttpMcpToolInvoker implements McpToolInvocationPort {
         return builder.build().encode().toUri();
     }
 
-    private void headers(HttpHeaders headers, JsonNode arguments, UserContext userContext) {
+    private void headers(HttpHeaders headers, JsonNode arguments) {
         arguments.path("headers").fields().forEachRemaining(value -> headers.set(value.getKey(), value.getValue().asText()));
-        if (userContext.userId() != null) {
-            headers.set("X-User-Id", userContext.userId());
-        }
-        if (userContext.tenantId() != null) {
-            headers.set("X-Tenant-Id", userContext.tenantId());
-        }
     }
 
     private ToolInvocationResult response(int status, MediaType contentType, String payload) {

@@ -21,13 +21,21 @@ final class McpToolInputValidator {
             return path + " 不在允许值范围内";
         }
         if ("object".equals(type)) {
+            JsonNode properties = schema.path("properties");
+            Iterator<String> names = value.fieldNames();
+            while (names.hasNext()) {
+                String name = names.next();
+                if (!properties.has(name)) {
+                    return path + "." + name + " 不受支持";
+                }
+            }
             for (JsonNode required : schema.path("required")) {
                 String name = required.asText();
                 if (!value.has(name) || value.path(name).isNull()) {
                     return path + "." + name + " 是必填项";
                 }
             }
-            Iterator<Map.Entry<String, JsonNode>> fields = schema.path("properties").fields();
+            Iterator<Map.Entry<String, JsonNode>> fields = properties.fields();
             while (fields.hasNext()) {
                 Map.Entry<String, JsonNode> field = fields.next();
                 if (value.has(field.getKey())) {
