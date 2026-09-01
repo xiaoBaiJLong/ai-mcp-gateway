@@ -16,6 +16,10 @@
 
 分支、提交与推送约定见 `docs/agents/git-workflow.md`。
 
+### 云端开发环境
+
+云服务器连接、Nacos SSH 隧道与本机启动前检查见 `docs/agents/cloud-development.md`。
+
 ### 开发完成
 
 每次开发完成并完成相应验证后，必须将变更提交到当前 Git 分支，并推送到 GitHub 远程仓库。
