@@ -6,6 +6,7 @@ import 'antd/dist/reset.css';
 type Operation = { serviceName: string; method: string; path: string; operationId?: string; summary: string; description: string; deprecated: boolean; supported: boolean; unsupportedReason?: string };
 type ToolDraft = { serviceName: string; method: string; path: string; initialName: string; initialDescription: string; inputSchema: unknown };
 type Tool = { id: string; name: string; description: string; enabled: boolean; mapping: { serviceName: string; method: string; path: string } };
+type ToolUpdateCheck = { status: string; message: string; draft?: ToolDraft; operationSnapshot?: unknown };
 type Credential = { id: string; prefix: string; createdAt: string; enabled: boolean };
 type AgentTool = { id: string; name: string; description: string; enabled: boolean };
 type Agent = { id: string; name: string; description: string; createdAt: string; credentials: Credential[]; toolSnapshot: AgentTool[] };
@@ -35,11 +36,12 @@ function App() {
   const [tools, setTools] = useState<Tool[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
   const [draft, setDraft] = useState<ToolDraft>();
+  const [updatePreview, setUpdatePreview] = useState<{ tool: Tool; draft: ToolDraft; operationSnapshot: unknown }>();
   const [agentDraft, setAgentDraft] = useState(false);
   const [configuredAgent, setConfiguredAgent] = useState<Agent>();
   const [draftToolIds, setDraftToolIds] = useState<string[]>([]);
   const [revealedCredential, setRevealedCredential] = useState<RevealedCredential>();
-  const [page, setPage] = useState<'tools' | 'agents'>('tools');
+  const [page, setPage] = useState<'tools' | 'manage' | 'agents'>('tools');
   const pageRef = useRef(page);
   const [error, setError] = useState<string>();
   const [form] = Form.useForm<{ name: string; description: string }>();
@@ -54,7 +56,7 @@ function App() {
   };
   const loadTools = async () => {
     try { setTools(await request<Tool[]>('/tools')); }
-    catch (reason) { if (pageRef.current === 'tools') setError(reason instanceof Error ? reason.message : '无法读取 MCP 工具'); }
+    catch (reason) { if (pageRef.current === 'tools' || pageRef.current === 'manage') setError(reason instanceof Error ? reason.message : '无法读取 MCP 工具'); }
   };
   const loadAgents = async () => {
     try { setAgents(await request<Agent[]>('/agents')); }
@@ -63,8 +65,8 @@ function App() {
   useEffect(() => {
     pageRef.current = page;
     setError(undefined);
-    if (page === 'tools') {
-      void loadSources();
+    if (page === 'tools' || page === 'manage') {
+      if (page === 'tools') void loadSources();
       void loadTools();
     } else {
       void loadAgents();
@@ -94,6 +96,27 @@ function App() {
       await request<Tool>('/tools', { method: 'POST', body: JSON.stringify({ ...draft, ...values }) });
       message.success('MCP 工具已创建并默认启用'); setDraft(undefined); await loadTools();
     } catch (reason) { if (reason instanceof Error) setError(reason.message); }
+  };
+  const updateToolStatus = async (tool: Tool, enabled: boolean) => {
+    try {
+      await request<Tool>(`/tools/${tool.id}/status`, { method: 'PATCH', body: JSON.stringify({ enabled }) });
+      await loadTools();
+    } catch (reason) { setError(reason instanceof Error ? reason.message : '无法更新工具状态'); }
+  };
+  const checkToolUpdate = async (tool: Tool) => {
+    try {
+      setError(undefined);
+      const result = await request<ToolUpdateCheck>(`/tools/${tool.id}/update-check`, { method: 'POST' });
+      if (result.status === 'CHANGED' && result.draft && result.operationSnapshot) setUpdatePreview({ tool, draft: result.draft, operationSnapshot: result.operationSnapshot });
+      else message.info(result.message);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : '无法检查来源 OpenAPI 更新'); }
+  };
+  const saveMappingUpdate = async () => {
+    if (!updatePreview) return;
+    try {
+      await request<Tool>(`/tools/${updatePreview.tool.id}/mapping`, { method: 'PUT', body: JSON.stringify({ operationSnapshot: JSON.stringify(updatePreview.operationSnapshot) }) });
+      setUpdatePreview(undefined); await loadTools(); message.success('HTTP Mapping 与输入 schema 已按预览更新；工具名称和说明保持不变');
+    } catch (reason) { setError(reason instanceof Error ? reason.message : '无法保存映射更新'); }
   };
   const createAgent = async () => {
     try {
@@ -127,14 +150,14 @@ function App() {
     <Layout style={{ minHeight: '100vh' }}>
       <Sider theme="light" width={220}>
         <Typography.Title level={4} style={{ padding: '20px 24px', margin: 0 }}>MCP 网关</Typography.Title>
-        <Menu selectedKeys={[page]} onClick={({ key }) => { if (key === 'agents') setPage('agents'); if (key === 'tools') setPage('tools'); }} items={[
-          { key: 'tools', label: '工具配置' }, { key: 'manage', label: '工具管理', disabled: true },
+        <Menu selectedKeys={[page]} onClick={({ key }) => { if (key === 'agents') setPage('agents'); if (key === 'tools') setPage('tools'); if (key === 'manage') setPage('manage'); }} items={[
+          { key: 'tools', label: '工具配置' }, { key: 'manage', label: '工具管理' },
           { key: 'collections', label: '工具集管理', disabled: true }, { key: 'agents', label: '智能体管理' },
           { key: 'validation', label: 'MCP 验证', disabled: true },
         ]} />
       </Sider>
       <Layout>
-        <Header style={{ background: '#fff', padding: '0 32px' }}><Typography.Title level={3} style={{ lineHeight: '64px', margin: 0 }}>{page === 'tools' ? '从 OpenAPI 导入 MCP 工具' : '智能体管理'}</Typography.Title></Header>
+        <Header style={{ background: '#fff', padding: '0 32px' }}><Typography.Title level={3} style={{ lineHeight: '64px', margin: 0 }}>{page === 'tools' ? '从 OpenAPI 导入 MCP 工具' : page === 'manage' ? 'MCP 工具管理' : '智能体管理'}</Typography.Title></Header>
         <Content style={{ padding: 32, background: '#f5f5f7' }}>{page === 'agents' ? <Space direction="vertical" size="large" style={{ display: 'flex' }}>
           {error && <Alert type="error" showIcon closable message={error} onClose={() => setError(undefined)} />}
           {revealedCredential && <Alert type="warning" showIcon closable message="请立即保存 API Key；关闭或刷新页面后将无法再次查看" description={<pre style={{ margin: '8px 0 0', whiteSpace: 'pre-wrap' }}>{revealedCredential.apiKey}</pre>} onClose={() => setRevealedCredential(undefined)} />}
@@ -142,8 +165,17 @@ function App() {
           <section style={{ background: '#fff', padding: 24, borderRadius: 12 }}><Table<Agent> rowKey="id" dataSource={agents} pagination={false} columns={[
             { title: '名称', dataIndex: 'name' }, { title: '说明', dataIndex: 'description', render: (value) => value || '—' },
             { title: '凭证状态', render: (_, item) => { const credential = item.credentials[0]; return credential ? <Space><Tag color={credential.enabled ? 'green' : 'default'}>{credential.enabled ? '启用' : '禁用'}</Tag><Switch size="small" checked={credential.enabled} onChange={(enabled) => void updateCredentialStatus(item, enabled)} /></Space> : '—'; } },
-            { title: '工具快照', render: (_, item) => item.toolSnapshot.length ? item.toolSnapshot.map((tool) => <Tag key={tool.id}>{tool.name}</Tag>) : '未配置' },
+            { title: '工具快照', render: (_, item) => item.toolSnapshot.length ? item.toolSnapshot.map((tool) => <Tag color={tool.enabled ? undefined : 'default'} key={tool.id}>{tool.name}{tool.enabled ? '' : '（已禁用）'}</Tag>) : '未配置' },
             { title: '操作', render: (_, item) => <Space><Button type="link" onClick={() => void resetCredential(item)}>重置 Key</Button><Button type="link" onClick={() => { setConfiguredAgent(item); setDraftToolIds(item.toolSnapshot.map((tool) => tool.id)); }}>配置工具</Button></Space> },
+          ]} /></section>
+        </Space> : page === 'manage' ? <Space direction="vertical" size="large" style={{ display: 'flex' }}>
+          {error && <Alert type="error" showIcon closable message={error} onClose={() => setError(undefined)} />}
+          <section style={{ background: '#fff', padding: 24, borderRadius: 12 }}><Space><Button onClick={() => void loadTools()}>刷新</Button><Typography.Text type="secondary">禁用的工具会保留在智能体工具快照中，但不会被 MCP 运行时展示或调用。</Typography.Text></Space></section>
+          <section style={{ background: '#fff', padding: 24, borderRadius: 12 }}><Table<Tool> rowKey="id" dataSource={tools} pagination={false} columns={[
+            { title: '名称', dataIndex: 'name' }, { title: '说明', dataIndex: 'description', render: (value) => value || '—' },
+            { title: '来源', render: (_, item) => `${item.mapping.serviceName} · ${item.mapping.method} ${item.mapping.path}` },
+            { title: '状态', render: (_, item) => <Space><Tag color={item.enabled ? 'green' : 'default'}>{item.enabled ? '启用' : '禁用'}</Tag><Switch size="small" checked={item.enabled} onChange={(enabled) => void updateToolStatus(item, enabled)} /></Space> },
+            { title: '操作', render: (_, item) => <Button type="link" onClick={() => void checkToolUpdate(item)}>检查来源更新</Button> },
           ]} /></section>
         </Space> : <Space direction="vertical" size="large" style={{ display: 'flex' }}>
           {error && <Alert type="error" showIcon closable message={error} onClose={() => setError(undefined)} />}
@@ -179,12 +211,19 @@ function App() {
         <Typography.Text strong>输入 schema</Typography.Text><pre style={{ overflow: 'auto', padding: 16, background: '#f5f5f7', borderRadius: 8 }}>{JSON.stringify(draft.inputSchema, null, 2)}</pre>
       </Space>}
     </Drawer>
+    <Drawer title="预览来源映射更新" width={640} open={Boolean(updatePreview)} onClose={() => setUpdatePreview(undefined)} extra={<Button type="primary" onClick={() => void saveMappingUpdate()}>确认更新</Button>}>
+      {updatePreview && <Space direction="vertical" size="large" style={{ display: 'flex' }}>
+        <Alert type="info" showIcon message="仅更新 HTTP Mapping 和输入 schema；管理端名称与说明不会被 OpenAPI 覆盖。" />
+        <Descriptions column={1} size="small" items={[{ key: 'tool', label: 'MCP 工具', children: updatePreview.tool.name }, { key: 'source', label: '来源业务服务', children: updatePreview.draft.serviceName }, { key: 'mapping', label: 'HTTP Mapping', children: `${updatePreview.draft.method} ${updatePreview.draft.path}` }]} />
+        <Typography.Text strong>新的输入 schema</Typography.Text><pre style={{ overflow: 'auto', padding: 16, background: '#f5f5f7', borderRadius: 8 }}>{JSON.stringify(updatePreview.draft.inputSchema, null, 2)}</pre>
+      </Space>}
+    </Drawer>
     <Drawer title="创建智能体" width={520} open={agentDraft} onClose={() => setAgentDraft(false)} extra={<Button type="primary" onClick={() => void createAgent()}>创建并显示 Key</Button>}>
       <Form form={agentForm} layout="vertical"><Form.Item name="name" label="智能体名称" rules={[{ required: true, message: '请输入智能体名称' }]}><Input /></Form.Item><Form.Item name="description" label="说明（可选）"><Input.TextArea rows={3} /></Form.Item></Form>
     </Drawer>
     <Drawer title={`配置 ${configuredAgent?.name ?? ''} 的工具快照`} width={560} open={Boolean(configuredAgent)} onClose={() => setConfiguredAgent(undefined)} extra={<Button type="primary" onClick={() => void publishToolSnapshot()}>发布快照</Button>}>
       <Typography.Paragraph>此处选择仅为临时配置，点击“发布快照”后才会整体替换当前生效的工具快照。</Typography.Paragraph>
-      <Select mode="multiple" style={{ width: '100%' }} placeholder="选择已发布的 MCP 工具" value={draftToolIds} onChange={setDraftToolIds} options={tools.filter((tool) => tool.enabled).map((tool) => ({ value: tool.id, label: `${tool.name}${tool.description ? ` · ${tool.description}` : ''}` }))} />
+      <Select mode="multiple" style={{ width: '100%' }} placeholder="选择已发布的 MCP 工具" value={draftToolIds} onChange={setDraftToolIds} options={tools.map((tool) => ({ value: tool.id, disabled: !tool.enabled, label: `${tool.name}${tool.enabled ? '' : '（已禁用）'}${tool.description ? ` · ${tool.description}` : ''}` }))} />
     </Drawer>
   </ConfigProvider>;
 }

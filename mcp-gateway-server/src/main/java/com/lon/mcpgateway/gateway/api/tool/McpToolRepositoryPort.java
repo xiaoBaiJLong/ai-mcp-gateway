@@ -15,6 +15,12 @@ public interface McpToolRepositoryPort {
 
     List<StoredToolView> findAll();
 
+    StoredToolView findById(String toolId);
+
+    boolean updateEnabled(String toolId, boolean enabled);
+
+    boolean updateMapping(String toolId, String inputSchema, String operationSnapshot);
+
     List<String> findEnabledToolIds(List<String> toolIds);
 
     List<RuntimeToolRecord> findEnabledToolsForAgent(String agentId);

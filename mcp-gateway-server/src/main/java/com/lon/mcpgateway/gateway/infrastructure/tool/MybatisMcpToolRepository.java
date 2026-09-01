@@ -36,7 +36,24 @@ public class MybatisMcpToolRepository implements McpToolRepositoryPort {
     @Override
     public List<StoredToolView> findAll() {
         return mapper.findAll().stream().map(row -> new StoredToolView(row.id(), row.name(), row.description(), row.enabled(),
-                row.createdAt(), row.serviceName(), row.method(), row.path(), row.inputSchema())).toList();
+                row.createdAt(), row.serviceName(), row.method(), row.path(), row.inputSchema(), row.operationSnapshot())).toList();
+    }
+
+    @Override
+    public StoredToolView findById(String toolId) {
+        ToolMapper.ToolRow row = mapper.findById(toolId);
+        return row == null ? null : new StoredToolView(row.id(), row.name(), row.description(), row.enabled(), row.createdAt(),
+                row.serviceName(), row.method(), row.path(), row.inputSchema(), row.operationSnapshot());
+    }
+
+    @Override
+    public boolean updateEnabled(String toolId, boolean enabled) {
+        return mapper.updateEnabled(toolId, enabled) == 1;
+    }
+
+    @Override
+    public boolean updateMapping(String toolId, String inputSchema, String operationSnapshot) {
+        return mapper.updateMapping(toolId, inputSchema, operationSnapshot) == 1;
     }
 
     @Override

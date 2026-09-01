@@ -2,6 +2,7 @@ package com.lon.mcpgateway.gateway.types.tool;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import java.time.Instant;
 import java.util.List;
@@ -38,6 +39,15 @@ public final class ToolModels {
     public record ToolView(String id, String name, String description, boolean enabled, Instant createdAt, MappingView mapping) {
     }
 
+    public record ToolStatusUpdateRequest(@NotNull Boolean enabled) {
+    }
+
+    public record ToolUpdateCheckView(String status, String message, ToolDraftView draft, JsonNode operationSnapshot) {
+    }
+
+    public record MappingUpdateRequest(@NotBlank String operationSnapshot) {
+    }
+
     public record McpToolRecord(String id, String name, String nameHash, String description, boolean enabled, Instant createdAt) {
     }
 
@@ -46,7 +56,7 @@ public final class ToolModels {
     }
 
     public record StoredToolView(String id, String name, String description, boolean enabled, Instant createdAt,
-            String serviceName, String method, String path, String inputSchema) {
+            String serviceName, String method, String path, String inputSchema, String operationSnapshot) {
     }
 
     public record RuntimeToolRecord(String id, String name, String description, String inputSchema,

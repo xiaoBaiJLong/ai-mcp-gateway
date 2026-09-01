@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
+import org.apache.ibatis.annotations.Update;
 
 @Mapper
 interface ToolMapper {
@@ -21,8 +22,18 @@ interface ToolMapper {
     @Select("select count(*) from http_mappings where source_hash = #{sourceHash}")
     int countBySourceHash(String sourceHash);
 
-    @Select("select t.id, t.name, t.description, t.enabled, t.created_at as createdAt, m.service_name as serviceName, m.http_method as method, m.normalized_path as path, m.input_schema as inputSchema from mcp_tools t join http_mappings m on m.tool_id = t.id order by t.created_at")
+    @Select("select t.id, t.name, t.description, t.enabled, t.created_at as createdAt, m.service_name as serviceName, m.http_method as method, m.normalized_path as path, m.input_schema as inputSchema, m.operation_snapshot as operationSnapshot from mcp_tools t join http_mappings m on m.tool_id = t.id order by t.created_at")
     List<ToolRow> findAll();
+
+    @Select("select t.id, t.name, t.description, t.enabled, t.created_at as createdAt, m.service_name as serviceName, m.http_method as method, m.normalized_path as path, m.input_schema as inputSchema, m.operation_snapshot as operationSnapshot from mcp_tools t join http_mappings m on m.tool_id = t.id where t.id = #{toolId}")
+    ToolRow findById(String toolId);
+
+    @Update("update mcp_tools set enabled = #{enabled} where id = #{toolId}")
+    int updateEnabled(@Param("toolId") String toolId, @Param("enabled") boolean enabled);
+
+    @Update("update http_mappings set input_schema = #{inputSchema}, operation_snapshot = #{operationSnapshot} where tool_id = #{toolId}")
+    int updateMapping(@Param("toolId") String toolId, @Param("inputSchema") String inputSchema,
+            @Param("operationSnapshot") String operationSnapshot);
 
     @Select({"<script>",
             "select id, name, description, enabled from mcp_tools where enabled = true and id in",
@@ -44,7 +55,7 @@ interface ToolMapper {
     }
 
     record ToolRow(String id, String name, String description, boolean enabled, Instant createdAt,
-            String serviceName, String method, String path, String inputSchema) {
+            String serviceName, String method, String path, String inputSchema, String operationSnapshot) {
     }
 
     record EnabledToolRow(String id, String name, String description, boolean enabled) {

@@ -160,6 +160,14 @@ class McpProtocolApiTest {
         assertEquals("users.read", tools.get(0).path("name").asText());
         assertTrue(tools.get(0).has("inputSchema"));
         assertFalse(listed.has("error"));
+
+        webTestClient.patch().uri("/api/v1/tools/tool-visible/status").contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"enabled\":false}").exchange().expectStatus().isOk();
+        JsonNode afterDisable = exchange("{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/list\",\"params\":{}}");
+        JsonNode rejected = exchange("{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"tools/call\",\"params\":{\"name\":\"users.read\",\"arguments\":{}}}");
+        assertEquals(0, afterDisable.path("result").path("tools").size());
+        assertEquals(-32602, rejected.path("error").path("code").asInt());
+        assertEquals(null, receivedPath.get());
     }
 
     @Test
