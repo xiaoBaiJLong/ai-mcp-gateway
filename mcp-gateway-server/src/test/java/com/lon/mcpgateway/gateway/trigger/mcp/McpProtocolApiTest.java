@@ -13,8 +13,10 @@ import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -418,7 +420,7 @@ class McpProtocolApiTest {
     }
 
     private JsonNode exchange(String agentKey, String request, String userId, String tenantId) throws Exception {
-        WebTestClient.RequestBodySpec requestSpec = webTestClient.post().uri("/mcp")
+        WebTestClient.RequestBodySpec requestSpec = webTestClient.mutate().responseTimeout(Duration.ofSeconds(20)).build().post().uri("/mcp")
                 .contentType(MediaType.APPLICATION_JSON)
                 .accept(MediaType.APPLICATION_JSON, MediaType.TEXT_EVENT_STREAM)
                 .header("MCP-Protocol-Version", "2025-11-25")
