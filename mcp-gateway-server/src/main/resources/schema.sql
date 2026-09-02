@@ -39,3 +39,16 @@ create table if not exists agent_tool_assignments (
     tool_id varchar(36) not null comment 'MCP 工具标识，由应用层维护关联关系',
     primary key (agent_id, tool_id)
 ) comment = '智能体工具快照分配表';
+
+create table if not exists tool_collections (
+    id varchar(36) primary key comment '工具集唯一标识',
+    name varchar(128) not null comment '工具集名称',
+    description varchar(2000) not null comment '工具集说明',
+    created_at timestamp not null comment '创建时间'
+) comment = 'MCP 工具集模板表';
+
+create table if not exists tool_collection_members (
+    collection_id varchar(36) not null comment '工具集标识',
+    tool_id varchar(36) not null comment 'MCP 工具标识',
+    primary key (collection_id, tool_id)
+) comment = 'MCP 工具集成员表';

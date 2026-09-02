@@ -17,6 +17,8 @@ public interface McpToolRepositoryPort {
 
     List<String> findEnabledToolIds(List<String> toolIds);
 
+    List<String> findToolIds(List<String> toolIds);
+
     List<RuntimeToolRecord> findEnabledToolsForAgent(String agentId);
 
     RuntimeToolRecord findEnabledToolForAgent(String agentId, String toolName);

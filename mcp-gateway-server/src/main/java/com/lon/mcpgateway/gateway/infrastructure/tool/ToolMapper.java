@@ -30,6 +30,12 @@ interface ToolMapper {
             "</script>"})
     List<EnabledToolRow> findEnabledToolsByIds(@Param("toolIds") List<String> toolIds);
 
+    @Select({"<script>",
+            "select id from mcp_tools where id in",
+            "<foreach item='toolId' collection='toolIds' open='(' separator=',' close=')'>#{toolId}</foreach>",
+            "</script>"})
+    List<String> findToolIds(@Param("toolIds") List<String> toolIds);
+
     @Select("select t.id, t.name, t.description, m.input_schema as inputSchema, m.service_name as serviceName, m.http_method as method, m.normalized_path as path from agent_tool_assignments a join mcp_tools t on t.id = a.tool_id join http_mappings m on m.tool_id = t.id where a.agent_id = #{agentId} and t.enabled = true order by t.created_at")
     List<RuntimeToolRow> findEnabledToolsForAgent(String agentId);
 

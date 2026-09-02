@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import ReactDOM from 'react-dom/client';
-import { Alert, Button, ConfigProvider, Descriptions, Drawer, Form, Input, Layout, Menu, Select, Space, Switch, Table, Tag, Typography, message } from 'antd';
+import { Alert, Button, ConfigProvider, Descriptions, Drawer, Form, Input, Layout, Menu, Popconfirm, Select, Space, Switch, Table, Tag, Typography, message } from 'antd';
 import 'antd/dist/reset.css';
 
 type Operation = { serviceName: string; method: string; path: string; operationId?: string; summary: string; description: string; deprecated: boolean; supported: boolean; unsupportedReason?: string };
@@ -11,6 +11,7 @@ type AgentTool = { id: string; name: string; description: string; enabled: boole
 type Agent = { id: string; name: string; description: string; createdAt: string; credentials: Credential[]; toolSnapshot: AgentTool[] };
 type CreatedAgent = { id: string; name: string; description: string; createdAt: string; toolSnapshot: AgentTool[]; credential: Credential & { apiKey: string } };
 type RevealedCredential = Credential & { apiKey: string };
+type ToolCollection = { id: string; name: string; description: string; createdAt: string; tools: AgentTool[] };
 type ApiResponse<T> = { code: string; message: string; data: T };
 
 const { Header, Content, Sider } = Layout;
@@ -34,16 +35,20 @@ function App() {
   const [operations, setOperations] = useState<Operation[]>([]);
   const [tools, setTools] = useState<Tool[]>([]);
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [collections, setCollections] = useState<ToolCollection[]>([]);
   const [draft, setDraft] = useState<ToolDraft>();
   const [agentDraft, setAgentDraft] = useState(false);
   const [configuredAgent, setConfiguredAgent] = useState<Agent>();
   const [draftToolIds, setDraftToolIds] = useState<string[]>([]);
+  const [draftCollectionIds, setDraftCollectionIds] = useState<string[]>([]);
+  const [configuredCollection, setConfiguredCollection] = useState<ToolCollection>();
   const [revealedCredential, setRevealedCredential] = useState<RevealedCredential>();
-  const [page, setPage] = useState<'tools' | 'agents'>('tools');
+  const [page, setPage] = useState<'tools' | 'agents' | 'collections'>('tools');
   const pageRef = useRef(page);
   const [error, setError] = useState<string>();
   const [form] = Form.useForm<{ name: string; description: string }>();
   const [agentForm] = Form.useForm<{ name: string; description: string }>();
+  const [collectionForm] = Form.useForm<{ name: string; description: string; toolIds: string[] }>();
 
   const loadSources = async () => {
     try {
@@ -60,14 +65,23 @@ function App() {
     try { setAgents(await request<Agent[]>('/agents')); }
     catch (reason) { if (pageRef.current === 'agents') setError(reason instanceof Error ? reason.message : '无法读取智能体'); }
   };
+  const loadCollections = async () => {
+    try { setCollections(await request<ToolCollection[]>('/tool-collections')); }
+    catch (reason) { if (pageRef.current === 'collections') setError(reason instanceof Error ? reason.message : '无法读取工具集'); }
+  };
   useEffect(() => {
     pageRef.current = page;
     setError(undefined);
     if (page === 'tools') {
       void loadSources();
       void loadTools();
-    } else {
+    } else if (page === 'agents') {
       void loadAgents();
+      void loadTools();
+      void loadCollections();
+    } else {
+      void loadCollections();
+      void loadTools();
     }
   }, [page]);
 
@@ -101,7 +115,7 @@ function App() {
       const created = await request<CreatedAgent>('/agents', { method: 'POST', body: JSON.stringify(values) });
       setRevealedCredential(created.credential); setAgentDraft(false); agentForm.resetFields();
       setConfiguredAgent({ id: created.id, name: created.name, description: created.description, createdAt: created.createdAt, credentials: [], toolSnapshot: created.toolSnapshot });
-      setDraftToolIds(created.toolSnapshot.map((tool) => tool.id)); await loadAgents();
+      setDraftToolIds(created.toolSnapshot.map((tool) => tool.id)); setDraftCollectionIds([]); await loadAgents();
       message.success('智能体已创建，API Key 仅显示本次');
     } catch (reason) { if (reason instanceof Error) setError(reason.message); }
   };
@@ -118,24 +132,50 @@ function App() {
   const publishToolSnapshot = async () => {
     if (!configuredAgent) return;
     try {
-      await request<Agent>(`/agents/${configuredAgent.id}/tool-snapshot`, { method: 'PUT', body: JSON.stringify({ toolIds: draftToolIds }) });
+      await request<Agent>(`/agents/${configuredAgent.id}/tool-snapshot`, { method: 'PUT', body: JSON.stringify({ collectionIds: draftCollectionIds, toolIds: draftToolIds }) });
       setConfiguredAgent(undefined); await loadAgents(); message.success('智能体工具快照已发布');
     } catch (reason) { setError(reason instanceof Error ? reason.message : '无法发布工具快照'); }
+  };
+  const saveCollection = async () => {
+    try {
+      const values = await collectionForm.validateFields();
+      const editing = Boolean(configuredCollection?.id);
+      const path = editing ? `/tool-collections/${configuredCollection?.id}` : '/tool-collections';
+      await request<ToolCollection>(path, { method: editing ? 'PUT' : 'POST', body: JSON.stringify(values) });
+      setConfiguredCollection(undefined); collectionForm.resetFields(); await loadCollections();
+      message.success(editing ? '工具集已更新' : '工具集已创建');
+    } catch (reason) { if (reason instanceof Error) setError(reason.message); }
+  };
+  const deleteCollection = async (collection: ToolCollection) => {
+    try { await request<void>(`/tool-collections/${collection.id}`, { method: 'DELETE' }); await loadCollections(); message.success('工具集已删除，不影响已发布的智能体工具快照'); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : '无法删除工具集'); }
+  };
+  const openCollection = (collection?: ToolCollection) => {
+    setConfiguredCollection(collection ?? { id: '', name: '', description: '', createdAt: '', tools: [] });
+    collectionForm.setFieldsValue({ name: collection?.name ?? '', description: collection?.description ?? '', toolIds: collection?.tools.map((tool) => tool.id) ?? [] });
   };
 
   return <ConfigProvider theme={{ token: { colorPrimary: '#1d1d1f', borderRadius: 10 } }}>
     <Layout style={{ minHeight: '100vh' }}>
       <Sider theme="light" width={220}>
         <Typography.Title level={4} style={{ padding: '20px 24px', margin: 0 }}>MCP 网关</Typography.Title>
-        <Menu selectedKeys={[page]} onClick={({ key }) => { if (key === 'agents') setPage('agents'); if (key === 'tools') setPage('tools'); }} items={[
+        <Menu selectedKeys={[page]} onClick={({ key }) => { if (key === 'agents') setPage('agents'); if (key === 'tools' || key === 'collections') { setPage(key); setConfiguredAgent(undefined); setDraftToolIds([]); setDraftCollectionIds([]); } }} items={[
           { key: 'tools', label: '工具配置' }, { key: 'manage', label: '工具管理', disabled: true },
-          { key: 'collections', label: '工具集管理', disabled: true }, { key: 'agents', label: '智能体管理' },
+          { key: 'collections', label: '工具集管理' }, { key: 'agents', label: '智能体管理' },
           { key: 'validation', label: 'MCP 验证', disabled: true },
         ]} />
       </Sider>
       <Layout>
-        <Header style={{ background: '#fff', padding: '0 32px' }}><Typography.Title level={3} style={{ lineHeight: '64px', margin: 0 }}>{page === 'tools' ? '从 OpenAPI 导入 MCP 工具' : '智能体管理'}</Typography.Title></Header>
-        <Content style={{ padding: 32, background: '#f5f5f7' }}>{page === 'agents' ? <Space direction="vertical" size="large" style={{ display: 'flex' }}>
+        <Header style={{ background: '#fff', padding: '0 32px' }}><Typography.Title level={3} style={{ lineHeight: '64px', margin: 0 }}>{page === 'tools' ? '从 OpenAPI 导入 MCP 工具' : page === 'agents' ? '智能体管理' : '工具集管理'}</Typography.Title></Header>
+        <Content style={{ padding: 32, background: '#f5f5f7' }}>{page === 'collections' ? <Space direction="vertical" size="large" style={{ display: 'flex' }}>
+          {error && <Alert type="error" showIcon closable message={error} onClose={() => setError(undefined)} />}
+          <section style={{ background: '#fff', padding: 24, borderRadius: 12 }}><Space><Button type="primary" onClick={() => openCollection()}>创建工具集</Button><Button onClick={() => void loadCollections()}>刷新</Button></Space></section>
+          <section style={{ background: '#fff', padding: 24, borderRadius: 12 }}><Table<ToolCollection> rowKey="id" dataSource={collections} pagination={false} columns={[
+            { title: '名称', dataIndex: 'name' }, { title: '说明', dataIndex: 'description', render: (value) => value || '—' },
+            { title: '成员工具', render: (_, item) => item.tools.length ? item.tools.map((tool) => <Tag key={tool.id} color={tool.enabled ? undefined : 'default'}>{tool.name}{tool.enabled ? '' : '（已禁用）'}</Tag>) : '未添加工具' },
+            { title: '操作', render: (_, item) => <Space><Button type="link" onClick={() => openCollection(item)}>编辑</Button><Popconfirm title="删除工具集不会影响已发布的智能体工具快照，确认删除？" onConfirm={() => void deleteCollection(item)}><Button type="link" danger>删除</Button></Popconfirm></Space> },
+          ]} /></section>
+        </Space> : page === 'agents' ? <Space direction="vertical" size="large" style={{ display: 'flex' }}>
           {error && <Alert type="error" showIcon closable message={error} onClose={() => setError(undefined)} />}
           {revealedCredential && <Alert type="warning" showIcon closable message="请立即保存 API Key；关闭或刷新页面后将无法再次查看" description={<pre style={{ margin: '8px 0 0', whiteSpace: 'pre-wrap' }}>{revealedCredential.apiKey}</pre>} onClose={() => setRevealedCredential(undefined)} />}
           <section style={{ background: '#fff', padding: 24, borderRadius: 12 }}><Space><Button type="primary" onClick={() => setAgentDraft(true)}>创建智能体</Button><Button onClick={() => void loadAgents()}>刷新</Button></Space></section>
@@ -143,7 +183,7 @@ function App() {
             { title: '名称', dataIndex: 'name' }, { title: '说明', dataIndex: 'description', render: (value) => value || '—' },
             { title: '凭证状态', render: (_, item) => { const credential = item.credentials[0]; return credential ? <Space><Tag color={credential.enabled ? 'green' : 'default'}>{credential.enabled ? '启用' : '禁用'}</Tag><Switch size="small" checked={credential.enabled} onChange={(enabled) => void updateCredentialStatus(item, enabled)} /></Space> : '—'; } },
             { title: '工具快照', render: (_, item) => item.toolSnapshot.length ? item.toolSnapshot.map((tool) => <Tag key={tool.id}>{tool.name}</Tag>) : '未配置' },
-            { title: '操作', render: (_, item) => <Space><Button type="link" onClick={() => void resetCredential(item)}>重置 Key</Button><Button type="link" onClick={() => { setConfiguredAgent(item); setDraftToolIds(item.toolSnapshot.map((tool) => tool.id)); }}>配置工具</Button></Space> },
+            { title: '操作', render: (_, item) => <Space><Button type="link" onClick={() => void resetCredential(item)}>重置 Key</Button><Button type="link" onClick={() => { setConfiguredAgent(item); setDraftToolIds(item.toolSnapshot.map((tool) => tool.id)); setDraftCollectionIds([]); }}>配置工具</Button></Space> },
           ]} /></section>
         </Space> : <Space direction="vertical" size="large" style={{ display: 'flex' }}>
           {error && <Alert type="error" showIcon closable message={error} onClose={() => setError(undefined)} />}
@@ -184,7 +224,14 @@ function App() {
     </Drawer>
     <Drawer title={`配置 ${configuredAgent?.name ?? ''} 的工具快照`} width={560} open={Boolean(configuredAgent)} onClose={() => setConfiguredAgent(undefined)} extra={<Button type="primary" onClick={() => void publishToolSnapshot()}>发布快照</Button>}>
       <Typography.Paragraph>此处选择仅为临时配置，点击“发布快照”后才会整体替换当前生效的工具快照。</Typography.Paragraph>
+      <Typography.Text strong>工具集模板</Typography.Text>
+      <Select mode="multiple" style={{ width: '100%', margin: '8px 0 16px' }} placeholder="选择一个或多个工具集" value={draftCollectionIds} onChange={setDraftCollectionIds} options={collections.map((collection) => ({ value: collection.id, label: `${collection.name}${collection.description ? ` · ${collection.description}` : ''}` }))} />
+      <Typography.Text strong>单个 MCP 工具</Typography.Text>
       <Select mode="multiple" style={{ width: '100%' }} placeholder="选择已发布的 MCP 工具" value={draftToolIds} onChange={setDraftToolIds} options={tools.filter((tool) => tool.enabled).map((tool) => ({ value: tool.id, label: `${tool.name}${tool.description ? ` · ${tool.description}` : ''}` }))} />
+    </Drawer>
+    <Drawer title={configuredCollection?.id ? '编辑工具集' : '创建工具集'} width={560} open={Boolean(configuredCollection)} onClose={() => { setConfiguredCollection(undefined); collectionForm.resetFields(); }} extra={<Button type="primary" onClick={() => void saveCollection()}>保存</Button>}>
+      <Typography.Paragraph>工具集仅是可复用模板；编辑或删除不会改变任何已发布的智能体工具快照。</Typography.Paragraph>
+      <Form form={collectionForm} layout="vertical"><Form.Item name="name" label="工具集名称" rules={[{ required: true, message: '请输入工具集名称' }]}><Input /></Form.Item><Form.Item name="description" label="说明（可选）"><Input.TextArea rows={3} /></Form.Item><Form.Item name="toolIds" label="成员 MCP 工具"><Select mode="multiple" placeholder="选择 MCP 工具" options={tools.map((tool) => ({ value: tool.id, label: `${tool.name}${tool.enabled ? '' : '（已禁用）'}${tool.description ? ` · ${tool.description}` : ''}` }))} /></Form.Item></Form>
     </Drawer>
   </ConfigProvider>;
 }

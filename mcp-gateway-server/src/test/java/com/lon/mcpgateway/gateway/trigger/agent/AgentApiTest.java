@@ -85,6 +85,42 @@ class AgentApiTest {
         org.junit.jupiter.api.Assertions.assertEquals(1, result.path("toolSnapshot").size());
     }
 
+    @Test
+    void managesToolCollectionsAndPublishesAnIndependentDeduplicatedToolSnapshot() throws Exception {
+        String agentId = createAgent("客服智能体", null).path("data").path("id").asText();
+        insertTool("tool-read", "users.read", true);
+        insertTool("tool-disabled", "users.disabled", false);
+        insertTool("tool-search", "users.search", true);
+
+        String collectionBody = webTestClient.post().uri("/api/v1/tool-collections").contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"name\":\"客服工具集\",\"description\":\"常用查询\",\"toolIds\":[\"tool-read\",\"tool-disabled\"]}")
+                .exchange().expectStatus().isCreated().expectBody(String.class).returnResult().getResponseBody();
+        JsonNode collection = objectMapper.readTree(collectionBody).path("data");
+        String collectionId = collection.path("id").asText();
+        org.junit.jupiter.api.Assertions.assertEquals(2, collection.path("tools").size());
+        org.junit.jupiter.api.Assertions.assertFalse(collection.path("tools").get(0).path("enabled").asBoolean());
+
+        webTestClient.put().uri("/api/v1/agents/{agentId}/tool-snapshot", agentId).contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"collectionIds\":[\"" + collectionId + "\"],\"toolIds\":[\"tool-read\",\"tool-search\"]}")
+                .exchange().expectStatus().isOk().expectBody()
+                .jsonPath("$.data.toolSnapshot.length()").isEqualTo(3)
+                .jsonPath("$.data.toolSnapshot[?(@.id == 'tool-read')]").exists()
+                .jsonPath("$.data.toolSnapshot[?(@.id == 'tool-disabled')]").exists()
+                .jsonPath("$.data.toolSnapshot[?(@.id == 'tool-search')]").exists();
+
+        webTestClient.delete().uri("/api/v1/tool-collections/{collectionId}", collectionId)
+                .exchange().expectStatus().isNoContent();
+        webTestClient.get().uri("/api/v1/agents/{agentId}", agentId).exchange().expectStatus().isOk().expectBody()
+                .jsonPath("$.data.toolSnapshot.length()").isEqualTo(3);
+    }
+
+    private void insertTool(String id, String name, boolean enabled) {
+        jdbcTemplate.update("insert into mcp_tools (id, name, name_hash, description, enabled, created_at) values (?, ?, ?, ?, ?, ?)",
+                id, name, name + "-hash", name, enabled, Instant.now());
+        jdbcTemplate.update("insert into http_mappings (tool_id, service_name, http_method, normalized_path, source_hash, input_schema, operation_snapshot) values (?, ?, ?, ?, ?, ?, ?)",
+                id, "mock-user-service", "GET", "/api/" + id, id + "-source", "{\"type\":\"object\"}", "{}");
+    }
+
     private JsonNode createAgent(String name, String description) {
         String request = description == null ? "{\"name\":\"" + name + "\"}" : "{\"name\":\"" + name + "\",\"description\":\"" + description + "\"}";
         String body = webTestClient.post().uri("/api/v1/agents").contentType(MediaType.APPLICATION_JSON)

@@ -29,7 +29,7 @@ class ApiExceptionHandler {
 
     private HttpStatus status(String code) {
         return switch (code) {
-            case "AGENT_NOT_FOUND", "CREDENTIAL_NOT_FOUND", "OPERATION_NOT_FOUND" -> HttpStatus.NOT_FOUND;
+            case "AGENT_NOT_FOUND", "CREDENTIAL_NOT_FOUND", "OPERATION_NOT_FOUND", "TOOL_NOT_FOUND", "TOOL_COLLECTION_NOT_FOUND" -> HttpStatus.NOT_FOUND;
             case "TOOL_NAME_EXISTS", "TOOL_SOURCE_EXISTS" -> HttpStatus.CONFLICT;
             case "TOOL_NOT_PUBLISHED", "OPERATION_UNSUPPORTED" -> HttpStatus.UNPROCESSABLE_ENTITY;
             default -> HttpStatus.BAD_REQUEST;
