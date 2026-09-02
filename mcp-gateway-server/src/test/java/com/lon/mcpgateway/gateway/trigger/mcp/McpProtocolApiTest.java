@@ -51,6 +51,7 @@ class McpProtocolApiTest {
     private static final String SDK_CLIENT_KEY = "mcp_sdk_client_test_key";
     private static final String INVALID_ARGUMENT_KEY = "mcp_invalid_argument_test_key";
     private static final String UNSUPPORTED_PROTOCOL_KEY = "mcp_unsupported_protocol_test_key";
+    private static final String COLLECTION_AGENT_KEY = "mcp_collection_agent_test_key";
 
     @Autowired
     private WebTestClient webTestClient;
@@ -160,6 +161,36 @@ class McpProtocolApiTest {
         assertEquals("users.read", tools.get(0).path("name").asText());
         assertTrue(tools.get(0).has("inputSchema"));
         assertFalse(listed.has("error"));
+    }
+
+    @Test
+    void toolsListChangesOnlyWhenTheAgentRepublishesAnEditedToolCollection() throws Exception {
+        Instant now = Instant.now();
+        insertAgent("agent-collection", "credential-collection", COLLECTION_AGENT_KEY, now);
+        insertTool("tool-collection-old", "users.collection-old", true, now);
+        insertTool("tool-collection-new", "users.collection-new", true, now);
+
+        String collectionResponse = webTestClient.post().uri("/api/v1/tool-collections").contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"name\":\"验证工具集\",\"toolIds\":[\"tool-collection-old\"]}")
+                .exchange().expectStatus().isCreated().expectBody(String.class).returnResult().getResponseBody();
+        String collectionId = objectMapper.readTree(collectionResponse).path("data").path("id").asText();
+
+        publishCollectionSnapshot("agent-collection", collectionId);
+        assertEquals("users.collection-old", exchange(COLLECTION_AGENT_KEY,
+                "{\"jsonrpc\":\"2.0\",\"id\":51,\"method\":\"tools/list\",\"params\":{}}")
+                .path("result").path("tools").get(0).path("name").asText());
+
+        webTestClient.put().uri("/api/v1/tool-collections/{collectionId}", collectionId).contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"name\":\"验证工具集\",\"toolIds\":[\"tool-collection-new\"]}")
+                .exchange().expectStatus().isOk();
+        assertEquals("users.collection-old", exchange(COLLECTION_AGENT_KEY,
+                "{\"jsonrpc\":\"2.0\",\"id\":52,\"method\":\"tools/list\",\"params\":{}}")
+                .path("result").path("tools").get(0).path("name").asText());
+
+        publishCollectionSnapshot("agent-collection", collectionId);
+        assertEquals("users.collection-new", exchange(COLLECTION_AGENT_KEY,
+                "{\"jsonrpc\":\"2.0\",\"id\":53,\"method\":\"tools/list\",\"params\":{}}")
+                .path("result").path("tools").get(0).path("name").asText());
     }
 
     @Test
@@ -394,6 +425,12 @@ class McpProtocolApiTest {
                 agentId, agentId, "", credentialId, createdAt);
         jdbcTemplate.update("insert into agent_credentials (id, agent_id, key_hash, key_prefix, created_at, enabled) values (?, ?, ?, ?, ?, ?)",
                 credentialId, agentId, hash(key), "mcp_protocol", createdAt, true);
+    }
+
+    private void publishCollectionSnapshot(String agentId, String collectionId) {
+        webTestClient.put().uri("/api/v1/agents/{agentId}/tool-snapshot", agentId).contentType(MediaType.APPLICATION_JSON)
+                .bodyValue("{\"collectionIds\":[\"" + collectionId + "\"],\"toolIds\":[]}")
+                .exchange().expectStatus().isOk();
     }
 
     private JsonNode call(String agentKey, String toolName, String arguments) throws Exception {

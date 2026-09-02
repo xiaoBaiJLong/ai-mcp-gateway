@@ -70,8 +70,8 @@ public final class AgentDomainServiceImpl implements AgentDomainService {
     public AgentView publishToolSnapshot(String agentId, List<String> requestedToolIds) {
         requiredAgentForUpdate(agentId);
         List<String> toolIds = List.copyOf(new LinkedHashSet<>(requestedToolIds));
-        if (!toolIds.isEmpty() && toolRepository.findEnabledToolIds(toolIds).size() != toolIds.size()) {
-            throw new GatewayException("TOOL_NOT_PUBLISHED", "只能选择已发布的 MCP 工具");
+        if (!toolIds.isEmpty() && toolRepository.findToolIds(toolIds).size() != toolIds.size()) {
+            throw new GatewayException("TOOL_NOT_FOUND", "MCP 工具不存在");
         }
         agentRepository.replaceToolAssignments(agentId, toolIds);
         return agent(agentId);

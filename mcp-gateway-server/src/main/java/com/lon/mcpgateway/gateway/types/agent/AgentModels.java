@@ -15,7 +15,11 @@ public final class AgentModels {
     public record UpdateCredentialStatusRequest(boolean enabled) {
     }
 
-    public record PublishToolSnapshotRequest(@NotNull List<@NotBlank String> toolIds) {
+    public record PublishToolSnapshotRequest(List<@NotBlank String> collectionIds, List<@NotBlank String> toolIds) {
+        public PublishToolSnapshotRequest {
+            collectionIds = collectionIds == null ? List.of() : List.copyOf(collectionIds);
+            toolIds = toolIds == null ? List.of() : List.copyOf(toolIds);
+        }
     }
 
     public record AgentCredentialView(String id, String prefix, Instant createdAt, boolean enabled) {

@@ -45,6 +45,11 @@ public class MybatisMcpToolRepository implements McpToolRepositoryPort {
     }
 
     @Override
+    public List<String> findToolIds(List<String> toolIds) {
+        return mapper.findToolIds(toolIds);
+    }
+
+    @Override
     public List<RuntimeToolRecord> findEnabledToolsForAgent(String agentId) {
         return mapper.findEnabledToolsForAgent(agentId).stream()
                 .map(row -> new RuntimeToolRecord(row.id(), row.name(), row.description(), row.inputSchema(), row.serviceName(),
