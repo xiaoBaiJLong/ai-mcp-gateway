@@ -12,6 +12,8 @@ type Agent = { id: string; name: string; description: string; createdAt: string;
 type CreatedAgent = { id: string; name: string; description: string; createdAt: string; toolSnapshot: AgentTool[]; credential: Credential & { apiKey: string } };
 type RevealedCredential = Credential & { apiKey: string };
 type ToolCollection = { id: string; name: string; description: string; createdAt: string; tools: AgentTool[] };
+type ValidationTool = { name: string; description: string; inputSchema: string };
+type ValidationMessage = { role: 'user' | 'assistant' | 'system'; content: string; kind?: 'text' | 'tool_call' | 'tool_status' | 'tool_result' | 'limit' | 'error' };
 type ApiResponse<T> = { code: string; message: string; data: T };
 
 const { Header, Content, Sider } = Layout;
@@ -43,12 +45,18 @@ function App() {
   const [draftCollectionIds, setDraftCollectionIds] = useState<string[]>([]);
   const [configuredCollection, setConfiguredCollection] = useState<ToolCollection>();
   const [revealedCredential, setRevealedCredential] = useState<RevealedCredential>();
-  const [page, setPage] = useState<'tools' | 'agents' | 'collections'>('tools');
+  const [page, setPage] = useState<'tools' | 'agents' | 'collections' | 'validation'>('tools');
   const pageRef = useRef(page);
   const [error, setError] = useState<string>();
   const [form] = Form.useForm<{ name: string; description: string }>();
   const [agentForm] = Form.useForm<{ name: string; description: string }>();
   const [collectionForm] = Form.useForm<{ name: string; description: string; toolIds: string[] }>();
+  const [validationKey, setValidationKey] = useState('');
+  const [validationTools, setValidationTools] = useState<ValidationTool[]>([]);
+  const [validationMessages, setValidationMessages] = useState<ValidationMessage[]>([]);
+  const [validationInput, setValidationInput] = useState('');
+  const [validationBusy, setValidationBusy] = useState(false);
+  const validationAbort = useRef<AbortController | undefined>(undefined);
 
   const loadSources = async () => {
     try {
@@ -154,20 +162,67 @@ function App() {
     setConfiguredCollection(collection ?? { id: '', name: '', description: '', createdAt: '', tools: [] });
     collectionForm.setFieldsValue({ name: collection?.name ?? '', description: collection?.description ?? '', toolIds: collection?.tools.map((tool) => tool.id) ?? [] });
   };
+  const clearValidation = () => {
+    validationAbort.current?.abort(); validationAbort.current = undefined;
+    setValidationKey(''); setValidationTools([]); setValidationMessages([]); setValidationInput(''); setValidationBusy(false);
+  };
+  const connectValidation = async () => {
+    try {
+      setError(undefined);
+      const result = await request<{ tools: ValidationTool[] }>('/validation/connect', { method: 'POST', body: JSON.stringify({ agentKey: validationKey }) });
+      setValidationTools(result.tools); setValidationMessages([]); message.success(`MCP 连接已验证，可使用 ${result.tools.length} 个 Tool`);
+    } catch (reason) { setValidationTools([]); setError(reason instanceof Error ? reason.message : 'MCP 连接验证失败'); }
+  };
+  const sendValidation = async () => {
+    const content = validationInput.trim();
+    if (!content || !validationTools.length || validationBusy) return;
+    const nextMessages = [...validationMessages.filter((item) => item.role === 'user' || item.kind === 'text').slice(-9), { role: 'user' as const, content }];
+    setValidationMessages(nextMessages); setValidationInput(''); setValidationBusy(true); setError(undefined);
+    const controller = new AbortController(); validationAbort.current = controller;
+    try {
+      const response = await fetch('/api/v1/validation/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: controller.signal,
+        body: JSON.stringify({ agentKey: validationKey, messages: nextMessages.map(({ role, content: text }) => ({ role, content: text })) }) });
+      if (!response.ok || !response.body) throw new Error(`验证对话请求失败（HTTP ${response.status}）`);
+      const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = '';
+      const appendEvent = (raw: string) => {
+        const data = raw.split('\n').find((line) => line.startsWith('data:'))?.slice(5);
+        if (!data) return;
+        const event = JSON.parse(data) as { type: ValidationMessage['kind']; data: unknown };
+        const text = typeof event.data === 'string' ? event.data : JSON.stringify(event.data, null, 2);
+        setValidationMessages((items) => {
+          if (event.type === 'text' && items.at(-1)?.kind === 'text' && items.at(-1)?.role === 'assistant') {
+            return [...items.slice(0, -1), { role: 'assistant', kind: 'text', content: items.at(-1)!.content + text }];
+          }
+          return [...items, { role: 'assistant', kind: event.type, content: text }];
+        });
+      };
+      while (true) {
+        const { value, done } = await reader.read(); buffer += decoder.decode(value ?? new Uint8Array(), { stream: !done });
+        let end; while ((end = buffer.indexOf('\n\n')) >= 0) { appendEvent(buffer.slice(0, end)); buffer = buffer.slice(end + 2); }
+        if (done) break;
+      }
+    } catch (reason) { if ((reason as Error).name !== 'AbortError') setError(reason instanceof Error ? reason.message : '验证对话失败'); }
+    finally { validationAbort.current = undefined; setValidationBusy(false); }
+  };
 
   return <ConfigProvider theme={{ token: { colorPrimary: '#1d1d1f', borderRadius: 10 } }}>
     <Layout style={{ minHeight: '100vh' }}>
       <Sider theme="light" width={220}>
         <Typography.Title level={4} style={{ padding: '20px 24px', margin: 0 }}>MCP 网关</Typography.Title>
-        <Menu selectedKeys={[page]} onClick={({ key }) => { if (key === 'agents') setPage('agents'); if (key === 'tools' || key === 'collections') { setPage(key); setConfiguredAgent(undefined); setDraftToolIds([]); setDraftCollectionIds([]); } }} items={[
+        <Menu selectedKeys={[page]} onClick={({ key }) => { if (page === 'validation' && key !== 'validation') clearValidation(); if (key === 'agents' || key === 'validation') setPage(key); if (key === 'tools' || key === 'collections') { setPage(key); setConfiguredAgent(undefined); setDraftToolIds([]); setDraftCollectionIds([]); } }} items={[
           { key: 'tools', label: '工具配置' }, { key: 'manage', label: '工具管理', disabled: true },
           { key: 'collections', label: '工具集管理' }, { key: 'agents', label: '智能体管理' },
-          { key: 'validation', label: 'MCP 验证', disabled: true },
+          { key: 'validation', label: 'MCP 验证' },
         ]} />
       </Sider>
       <Layout>
-        <Header style={{ background: '#fff', padding: '0 32px' }}><Typography.Title level={3} style={{ lineHeight: '64px', margin: 0 }}>{page === 'tools' ? '从 OpenAPI 导入 MCP 工具' : page === 'agents' ? '智能体管理' : '工具集管理'}</Typography.Title></Header>
-        <Content style={{ padding: 32, background: '#f5f5f7' }}>{page === 'collections' ? <Space direction="vertical" size="large" style={{ display: 'flex' }}>
+        <Header style={{ background: '#fff', padding: '0 32px' }}><Typography.Title level={3} style={{ lineHeight: '64px', margin: 0 }}>{page === 'tools' ? '从 OpenAPI 导入 MCP 工具' : page === 'agents' ? '智能体管理' : page === 'collections' ? '工具集管理' : 'MCP 验证台'}</Typography.Title></Header>
+        <Content style={{ padding: 32, background: '#f5f5f7' }}>{page === 'validation' ? <Space direction="vertical" size="large" style={{ display: 'flex' }}>
+          {error && <Alert type="error" showIcon closable message={error} onClose={() => setError(undefined)} />}
+          <section style={{ background: '#fff', padding: 24, borderRadius: 12 }}><Space direction="vertical" style={{ display: 'flex' }}><Typography.Text>临时粘贴 Agent API Key；仅保存在当前页面内存，刷新或离开后即丢失。</Typography.Text><Space.Compact style={{ width: '100%' }}><Input.Password value={validationKey} onChange={(event) => setValidationKey(event.target.value)} placeholder="X-MCP-Agent-Key" /><Button type="primary" onClick={() => void connectValidation()} loading={validationBusy}>测试 MCP 连接</Button></Space.Compact>{validationTools.length > 0 && <Typography.Text type="success">已取得 {validationTools.length} 个可用 Tool：{validationTools.map((tool) => tool.name).join('、')}</Typography.Text>}</Space></section>
+          <section style={{ background: '#fff', padding: 24, borderRadius: 12, minHeight: 280 }}><Space direction="vertical" style={{ display: 'flex' }}>{validationMessages.length ? validationMessages.map((item, index) => <div key={`${index}-${item.kind ?? item.role}`}><Typography.Text strong>{item.role === 'user' ? '管理员' : item.kind === 'tool_call' ? '调用 Tool' : item.kind === 'tool_status' ? 'Tool 状态' : item.kind === 'tool_result' ? 'Tool 结果' : item.kind === 'error' ? '错误' : '验证助手'}：</Typography.Text><pre style={{ whiteSpace: 'pre-wrap', margin: '6px 0 0' }}>{item.content}</pre></div>) : <Typography.Text type="secondary">连接后输入问题，验证助手会在实际 Agent 权限范围内调用 Tool。</Typography.Text>}</Space></section>
+          <section style={{ background: '#fff', padding: 24, borderRadius: 12 }}><Space.Compact style={{ width: '100%' }}><Input value={validationInput} disabled={!validationTools.length || validationBusy} onChange={(event) => setValidationInput(event.target.value)} onPressEnter={() => void sendValidation()} placeholder="例如：查询用户 u-1" /><Button type="primary" disabled={!validationTools.length || validationBusy} onClick={() => void sendValidation()}>发送</Button><Button disabled={!validationBusy} onClick={() => validationAbort.current?.abort()}>停止</Button></Space.Compact></section>
+        </Space> : page === 'collections' ? <Space direction="vertical" size="large" style={{ display: 'flex' }}>
           {error && <Alert type="error" showIcon closable message={error} onClose={() => setError(undefined)} />}
           <section style={{ background: '#fff', padding: 24, borderRadius: 12 }}><Space><Button type="primary" onClick={() => openCollection()}>创建工具集</Button><Button onClick={() => void loadCollections()}>刷新</Button></Space></section>
           <section style={{ background: '#fff', padding: 24, borderRadius: 12 }}><Table<ToolCollection> rowKey="id" dataSource={collections} pagination={false} columns={[

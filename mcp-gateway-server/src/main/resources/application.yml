@@ -19,6 +19,10 @@ gateway:
     group: ${NACOS_GROUP:DEFAULT_GROUP}
   openapi:
     timeout: ${GATEWAY_OPENAPI_TIMEOUT:PT5S}
+  validation:
+    # 模型名称与 Base URL 从 Nacos 的 gateway.validation 配置读取；API Key 仅由服务端环境变量提供。
+    nacos-data-id: ${GATEWAY_VALIDATION_NACOS_DATA_ID:mcp-gateway-server.yaml}
+    mcp-endpoint: ${GATEWAY_VALIDATION_MCP_ENDPOINT:http://127.0.0.1:${server.port}/mcp}
 
 management:
   endpoints:
