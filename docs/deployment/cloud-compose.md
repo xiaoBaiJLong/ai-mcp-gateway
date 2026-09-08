@@ -1,0 +1,49 @@
+# 云端 Docker Compose 部署
+
+本说明只部署 MCP Gateway、管理端、模拟业务服务和验证台；它不会覆盖 Nacos 配置，也不会自动改动 MySQL 结构。MySQL 与 Nacos 是长期基础设施，应用更新只能重建应用组。
+
+## 首次部署
+
+1. 在云主机检出目标提交，复制 `config/cloud.env.example` 为 `config/cloud.env`，并填写其中的密码、Nacos 节点认证值与 `OPENAI_API_KEY`。不要提交该文件。
+2. 仅首次启动持久化基础设施：
+
+   ```bash
+   docker compose --env-file config/cloud.env up -d mysql nacos
+   docker compose --env-file config/cloud.env ps
+   ```
+
+3. 在 MySQL 健康后，手动应用当前结构快照；此步骤不会清空已有数据：
+
+   ```bash
+   docker compose --env-file config/cloud.env exec -T mysql sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' < mcp-gateway-server/src/main/resources/schema.sql
+   ```
+
+4. 使用 Nacos 管理台在该 Namespace 与 Group 中维护 `mcp-gateway-server.yaml` 的 `gateway.validation.model`、`gateway.validation.base-url` 等非敏感运行配置。普通部署绝不导入、覆盖或删除该配置。
+5. 构建并启动应用组：
+
+   ```bash
+   docker compose --env-file config/cloud.env up -d --build mcp-gateway-server mock-user-service web-admin
+   docker compose --env-file config/cloud.env ps
+   curl -f http://127.0.0.1/
+   ```
+
+Nginx 在 HTTP 80 端口提供管理端，并反向代理 `/api/**` 到网关管理 API、`/mcp` 到 MCP Streamable HTTP Endpoint。MySQL 只监听云主机回环 `3306`；Nacos 只监听回环 `18848` 和 `19848`，可继续按 `docs/agents/cloud-development.md` 建立 SSH 隧道。当前网关没有实现 Nacos 登录，因此 Nacos 以 Docker 内网和宿主机回环端口作为访问边界。
+
+## 应用更新与回滚
+
+更新时只操作应用组，必须带 `--no-deps`，以避免 Compose 触碰 MySQL 和 Nacos：
+
+```bash
+git pull --ff-only
+docker compose --env-file config/cloud.env up -d --build --no-deps mcp-gateway-server mock-user-service web-admin
+docker compose --env-file config/cloud.env ps
+curl -f http://127.0.0.1/
+```
+
+回滚到已验证提交时，检出该提交后重复同一条 `docker compose --env-file config/cloud.env up -d --build --no-deps ...` 命令。不要使用 `docker compose down`，更不要加 `-v`；它会停止基础设施，`-v` 还会删除持久卷。
+
+## 首版复验
+
+云端管理端可依次重复：发现 `mock-user-service` 并导入 Tool、创建智能体并只保存一次 Agent Key、配置工具集与智能体工具快照、用该 Key 访问 `POST /mcp` 的 `tools/list` 和 `tools/call`、更新或禁用 Tool，并在验证台完成真实连接与对话调用。验证 `tools/call` 时覆盖成功、无效 Key、缺少或错误参数、模拟服务的 404/500、`userId=slow` 触发的 15 秒超时，以及禁用 Tool 的 JSON-RPC `-32602` 拒绝。
+
+在共享 Nacos 上进行云端复验前，停止本机模拟服务；本机和云端的 `mock-user-service` 不能同时注册。复验完成后如需继续本机开发，先停止云端模拟服务，或改用隔离的 Namespace。
