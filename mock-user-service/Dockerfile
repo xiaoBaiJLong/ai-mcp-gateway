@@ -4,7 +4,6 @@ WORKDIR /workspace
 COPY pom.xml ./
 COPY mcp-gateway-server/pom.xml mcp-gateway-server/pom.xml
 COPY mock-user-service/pom.xml mock-user-service/pom.xml
-RUN mvn -B -ntp -pl mock-user-service -am dependency:go-offline
 
 COPY mock-user-service/src mock-user-service/src
 RUN mvn -B -ntp -pl mock-user-service -am package -DskipTests
