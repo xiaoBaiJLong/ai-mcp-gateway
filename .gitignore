@@ -1,5 +1,6 @@
 # 本机秘密与运行配置
 config/local.env
+config/cloud.env
 .env.local
 
 # 本机构建与运行产物

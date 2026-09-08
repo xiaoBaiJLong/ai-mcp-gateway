@@ -1,0 +1,93 @@
+name: ai-mcp-gateway
+
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    env_file:
+      - ./config/cloud.env
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-mcp_gateway}
+      MYSQL_USER: ${GATEWAY_DATABASE_USERNAME:-mcp_gateway}
+      MYSQL_PASSWORD: ${GATEWAY_DATABASE_PASSWORD:?Set GATEWAY_DATABASE_PASSWORD in config/cloud.env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in config/cloud.env}
+    ports:
+      - "127.0.0.1:3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u$$MYSQL_USER -p$$MYSQL_PASSWORD --silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  nacos:
+    image: nacos/nacos-server:v2.5.0
+    restart: unless-stopped
+    env_file:
+      - ./config/cloud.env
+    environment:
+      MODE: standalone
+      # 网关当前的 Nacos 客户端不实现 Nacos 登录；通过 Docker 内网与宿主机回环端口限制访问范围。
+      NACOS_AUTH_ENABLE: "false"
+    ports:
+      - "127.0.0.1:18848:8848"
+      - "127.0.0.1:19848:9848"
+    volumes:
+      - nacos-data:/home/nacos/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8848/nacos/v1/console/health/readiness"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  mcp-gateway-server:
+    build:
+      context: .
+      dockerfile: mcp-gateway-server/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ./config/cloud.env
+    environment:
+      MCP_GATEWAY_PORT: 8080
+      GATEWAY_DATABASE_URL: jdbc:mysql://mysql:3306/${MYSQL_DATABASE:-mcp_gateway}?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai
+      NACOS_SERVER_ADDR: nacos:8848
+      GATEWAY_VALIDATION_MCP_ENDPOINT: http://mcp-gateway-server:8080/mcp
+    expose:
+      - "8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+
+  mock-user-service:
+    build:
+      context: .
+      dockerfile: mock-user-service/Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ./config/cloud.env
+    environment:
+      MOCK_USER_SERVICE_PORT: 8081
+      NACOS_SERVER_ADDR: nacos:8848
+    expose:
+      - "8081"
+    depends_on:
+      nacos:
+        condition: service_healthy
+
+  web-admin:
+    build:
+      context: .
+      dockerfile: web-admin/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      mcp-gateway-server:
+        condition: service_started
+
+volumes:
+  mysql-data:
+  nacos-data:

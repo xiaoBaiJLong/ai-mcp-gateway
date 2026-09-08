@@ -1,0 +1,9 @@
+.git
+.m2
+.m2-central
+**/target
+**/node_modules
+web-admin/dist
+config/local.env
+config/cloud.env
+logs
