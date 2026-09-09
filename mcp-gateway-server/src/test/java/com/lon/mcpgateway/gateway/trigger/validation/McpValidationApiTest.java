@@ -5,6 +5,7 @@ import com.lon.mcpgateway.gateway.api.validation.McpValidationCase;
 import com.lon.mcpgateway.gateway.api.validation.OpenAiValidationChatbotPort;
 import com.lon.mcpgateway.gateway.app.McpGatewayApplication;
 import com.lon.mcpgateway.gateway.types.validation.ValidationModels.ValidationTool;
+import com.lon.mcpgateway.gateway.types.validation.ValidationModels.ChatbotEvent;
 import com.lon.mcpgateway.gateway.types.validation.ValidationModels.ChatRequest;
 import com.lon.mcpgateway.gateway.types.validation.ValidationModels.ToolCall;
 import com.lon.mcpgateway.gateway.types.validation.ValidationModels.ToolCallEvent;
@@ -22,7 +23,9 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Schedulers;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT, classes = McpGatewayApplication.class, properties = {
         "spring.datasource.url=jdbc:h2:mem:validation-api;MODE=MySQL;DB_CLOSE_DELAY=-1",
@@ -74,5 +77,23 @@ class McpValidationApiTest {
 
         org.junit.jupiter.api.Assertions.assertEquals(List.of("tool_call", "tool_status", "tool_result", "tool_call", "tool_status", "tool_result", "tool_call", "tool_status", "tool_result", "limit"), eventTypes);
         verify(mcpClient, org.mockito.Mockito.times(3)).callTool(eq("agent-key"), any(), any());
+    }
+
+    @Test
+    void executesBlockingMcpClientOutsideTheReactiveResponseThread() {
+        when(mcpClient.connect(eq("agent-key"))).thenReturn(List.of(
+                new ValidationTool("users.get", "读取用户", "{\"type\":\"object\"}")));
+        when(chatbot.respond(any())).thenReturn(Flux.<ChatbotEvent>just(
+                new ToolCallEvent(new ToolCall("call-1", "users.get", JsonNodeFactory.instance.objectNode())))
+                .subscribeOn(Schedulers.parallel()), Flux.empty());
+        when(mcpClient.callTool(eq("agent-key"), any(), any())).thenAnswer(invocation -> {
+            assertFalse(Schedulers.isInNonBlockingThread());
+            return new ToolResult(200, JsonNodeFactory.instance.objectNode(), null, false);
+        });
+
+        List<String> eventTypes = validation.chat(new ChatRequest("agent-key", List.of()))
+                .map(event -> event.type()).collectList().block();
+
+        org.junit.jupiter.api.Assertions.assertEquals(List.of("tool_call", "tool_status", "tool_result"), eventTypes);
     }
 }

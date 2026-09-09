@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.List;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import reactor.core.publisher.Flux;
+import reactor.core.scheduler.Schedulers;
 
 public final class McpValidationCaseService implements McpValidationCase {
     private static final int MAX_TOOL_CALLS = 3;
@@ -73,7 +74,7 @@ public final class McpValidationCaseService implements McpValidationCase {
                 return Flux.fromIterable(visible);
             }
             return Flux.concat(Flux.fromIterable(visible), run(agentKey, messages, tools, results, callCount + results.size()));
-        }));
+        }).subscribeOn(Schedulers.boundedElastic()));
     }
 
     private com.lon.mcpgateway.gateway.types.validation.ValidationModels.ToolResult callTool(String agentKey, String name,
