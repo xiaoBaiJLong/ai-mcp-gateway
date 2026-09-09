@@ -15,14 +15,18 @@ class NacosValidationModelSettingsClient implements ValidationModelSettingsPort 
     private final WebClient webClient;
     private final GatewayNacosProperties nacos;
     private final String dataId;
+    private final ModelSettings environmentSettings;
     private final YAMLMapper yamlMapper = new YAMLMapper();
 
     NacosValidationModelSettingsClient(WebClient.Builder webClientBuilder, GatewayNacosProperties nacos,
-            @Value("${gateway.validation.nacos-data-id:mcp-gateway-server.yaml}") String dataId) {
+            @Value("${gateway.validation.nacos-data-id:mcp-gateway-server.yaml}") String dataId,
+            @Value("${gateway.validation.model:gpt-4.1-mini}") String model,
+            @Value("${gateway.validation.base-url:https://api.openai.com/v1}") String baseUrl) {
         String address = nacos.serverAddr().split(",")[0].trim();
         this.webClient = webClientBuilder.baseUrl(address.startsWith("http") ? address : "http://" + address).build();
         this.nacos = nacos;
         this.dataId = dataId;
+        this.environmentSettings = new ModelSettings(model, baseUrl);
     }
 
     @Override
@@ -33,16 +37,20 @@ class NacosValidationModelSettingsClient implements ValidationModelSettingsPort 
                     .retrieve().bodyToMono(String.class).block(Duration.ofSeconds(5));
             JsonNode root = yamlMapper.readTree(content);
             JsonNode validation = root.path("gateway").path("validation");
-            String model = validation.path("model").asText();
-            String baseUrl = validation.path("base-url").asText(validation.path("baseUrl").asText());
+            String model = validation.path("model").asText(environmentSettings.model());
+            String baseUrl = validation.path("base-url")
+                    .asText(validation.path("baseUrl").asText(environmentSettings.baseUrl()));
             if (model.isBlank() || baseUrl.isBlank()) {
-                throw new GatewayException("VALIDATION_MODEL_UNAVAILABLE", "Nacos 未配置验证模型名称或 Base URL");
+                throw new GatewayException("VALIDATION_MODEL_UNAVAILABLE", "未配置验证模型名称或 Base URL");
             }
             return new ModelSettings(model, baseUrl);
         } catch (GatewayException exception) {
             throw exception;
         } catch (Exception exception) {
-            throw new GatewayException("VALIDATION_MODEL_UNAVAILABLE", "无法从 Nacos 读取验证模型配置");
+            if (environmentSettings.model().isBlank() || environmentSettings.baseUrl().isBlank()) {
+                throw new GatewayException("VALIDATION_MODEL_UNAVAILABLE", "无法从 Nacos 读取验证模型配置，且环境默认配置不完整");
+            }
+            return environmentSettings;
         }
     }
 }

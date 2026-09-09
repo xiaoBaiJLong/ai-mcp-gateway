@@ -12,22 +12,30 @@
    docker compose --env-file config/cloud.env ps
    ```
 
-3. 在 MySQL 健康后，手动应用当前结构快照；此步骤不会清空已有数据：
+3. 在 MySQL 健康后，手动应用当前结构快照；首次部署时此步骤不会清空已有数据：
 
    ```bash
    docker compose --env-file config/cloud.env exec -T mysql sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' < mcp-gateway-server/src/main/resources/schema.sql
    ```
 
-4. 使用 Nacos 管理台在该 Namespace 与 Group 中维护 `mcp-gateway-server.yaml` 的 `gateway.validation.model`、`gateway.validation.base-url` 等非敏感运行配置。普通部署绝不导入、覆盖或删除该配置。
+   演示环境需要用最新结构覆盖旧结构时，可先只删除本项目的七张业务表，再重新导入结构。该命令会清空这些表中的全部数据，不会删除数据库、MySQL 卷或 Nacos 数据：
+
+   ```bash
+   docker compose --env-file config/cloud.env exec -T mysql sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" -e "SET FOREIGN_KEY_CHECKS=0; DROP TABLE IF EXISTS tool_collection_members, tool_collections, agent_tool_assignments, agent_credentials, agents, http_mappings, mcp_tools; SET FOREIGN_KEY_CHECKS=1;"'
+   docker compose --env-file config/cloud.env exec -T mysql sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' < mcp-gateway-server/src/main/resources/schema.sql
+   ```
+
+4. `config/cloud.env` 中的 `GATEWAY_VALIDATION_MODEL` 与 `GATEWAY_VALIDATION_BASE_URL` 提供验证台启动默认值。需要集中管理时，可在 Nacos 的该 Namespace 与 Group 中维护 `mcp-gateway-server.yaml` 的 `gateway.validation.model`、`gateway.validation.base-url`；Nacos 值优先，普通部署绝不导入、覆盖或删除该配置。
 5. 构建并启动应用组：
 
    ```bash
    docker compose --env-file config/cloud.env up -d --build mcp-gateway-server mock-user-service web-admin
    docker compose --env-file config/cloud.env ps
+   curl -f http://127.0.0.1:18080/
    curl -f http://127.0.0.1/
    ```
 
-Nginx 在 HTTP 80 端口提供管理端，并反向代理 `/api/**` 到网关管理 API、`/mcp` 到 MCP Streamable HTTP Endpoint。MySQL 只监听云主机回环 `3306`；Nacos 只监听回环 `18848` 和 `19848`，可继续按 `docs/agents/cloud-development.md` 建立 SSH 隧道。当前网关没有实现 Nacos 登录，因此 Nacos 以 Docker 内网和宿主机回环端口作为访问边界。
+容器内 Nginx 绑定云主机回环 `18080`，云主机已有的边缘 Nginx 在 HTTP 80 端口提供公网入口并转发到它；容器内 Nginx 再反向代理 `/api/**` 到网关管理 API、`/mcp` 到 MCP Streamable HTTP Endpoint。MySQL 只监听云主机回环 `3306`；Nacos 只监听回环 `18848` 和 `19848`，可继续按 `docs/agents/cloud-development.md` 建立 SSH 隧道。当前网关没有实现 Nacos 登录，因此 Nacos 以 Docker 内网和宿主机回环端口作为访问边界。
 
 ## 应用更新与回滚
 
@@ -37,6 +45,7 @@ Nginx 在 HTTP 80 端口提供管理端，并反向代理 `/api/**` 到网关管
 git pull --ff-only
 docker compose --env-file config/cloud.env up -d --build --no-deps mcp-gateway-server mock-user-service web-admin
 docker compose --env-file config/cloud.env ps
+curl -f http://127.0.0.1:18080/
 curl -f http://127.0.0.1/
 ```
 

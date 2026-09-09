@@ -8,6 +8,7 @@ config/cloud.env
 **/node_modules/
 web-admin/dist/
 .m2/
+.m2-central/
 logs/
 
 # 编辑器文件

@@ -20,8 +20,10 @@ gateway:
   openapi:
     timeout: ${GATEWAY_OPENAPI_TIMEOUT:PT5S}
   validation:
-    # 模型名称与 Base URL 从 Nacos 的 gateway.validation 配置读取；API Key 仅由服务端环境变量提供。
+    # 环境变量提供启动默认值；Nacos 的 gateway.validation 配置存在时优先覆盖。API Key 仅由服务端环境变量提供。
     nacos-data-id: ${GATEWAY_VALIDATION_NACOS_DATA_ID:mcp-gateway-server.yaml}
+    model: ${GATEWAY_VALIDATION_MODEL:gpt-4.1-mini}
+    base-url: ${GATEWAY_VALIDATION_BASE_URL:https://api.openai.com/v1}
     mcp-endpoint: ${GATEWAY_VALIDATION_MCP_ENDPOINT:http://127.0.0.1:${server.port}/mcp}
 
 management:

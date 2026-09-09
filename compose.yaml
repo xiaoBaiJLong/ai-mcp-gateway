@@ -83,7 +83,8 @@ services:
       dockerfile: web-admin/Dockerfile
     restart: unless-stopped
     ports:
-      - "80:80"
+      # 云主机上的边缘 Nginx 监听公网 80，并转发到此回环端口。
+      - "127.0.0.1:18080:80"
     depends_on:
       mcp-gateway-server:
         condition: service_started
