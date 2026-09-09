@@ -22,8 +22,8 @@ gateway:
   validation:
     # 环境变量提供启动默认值；Nacos 的 gateway.validation 配置存在时优先覆盖。API Key 仅由服务端环境变量提供。
     nacos-data-id: ${GATEWAY_VALIDATION_NACOS_DATA_ID:mcp-gateway-server.yaml}
-    model: ${GATEWAY_VALIDATION_MODEL:gpt-4.1-mini}
-    base-url: ${GATEWAY_VALIDATION_BASE_URL:https://api.openai.com/v1}
+    model: ${GATEWAY_VALIDATION_MODEL:deepseek-v4-flash}
+    base-url: ${GATEWAY_VALIDATION_BASE_URL:https://api.deepseek.com}
     mcp-endpoint: ${GATEWAY_VALIDATION_MCP_ENDPOINT:http://127.0.0.1:${server.port}/mcp}
 
 management:

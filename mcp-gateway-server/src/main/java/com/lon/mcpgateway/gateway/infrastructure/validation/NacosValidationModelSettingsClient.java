@@ -20,8 +20,8 @@ class NacosValidationModelSettingsClient implements ValidationModelSettingsPort 
 
     NacosValidationModelSettingsClient(WebClient.Builder webClientBuilder, GatewayNacosProperties nacos,
             @Value("${gateway.validation.nacos-data-id:mcp-gateway-server.yaml}") String dataId,
-            @Value("${gateway.validation.model:gpt-4.1-mini}") String model,
-            @Value("${gateway.validation.base-url:https://api.openai.com/v1}") String baseUrl) {
+            @Value("${gateway.validation.model:deepseek-v4-flash}") String model,
+            @Value("${gateway.validation.base-url:https://api.deepseek.com}") String baseUrl) {
         String address = nacos.serverAddr().split(",")[0].trim();
         this.webClient = webClientBuilder.baseUrl(address.startsWith("http") ? address : "http://" + address).build();
         this.nacos = nacos;
