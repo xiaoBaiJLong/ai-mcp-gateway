@@ -22,6 +22,11 @@
     <modules>
         <module>mcp-gateway-server</module>
         <module>mock-user-service</module>
+        <module>mock-order-service</module>
+        <module>mock-product-service</module>
+        <module>mock-inventory-service</module>
+        <module>mock-payment-service</module>
+        <module>mock-logistics-service</module>
     </modules>
 
     <properties>

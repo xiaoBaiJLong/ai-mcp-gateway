@@ -78,6 +78,21 @@ function Set-DefaultPorts {
     if ([string]::IsNullOrWhiteSpace($env:MOCK_USER_SERVICE_PORT)) {
         $env:MOCK_USER_SERVICE_PORT = '8081'
     }
+    if ([string]::IsNullOrWhiteSpace($env:MOCK_ORDER_SERVICE_PORT)) {
+        $env:MOCK_ORDER_SERVICE_PORT = '8082'
+    }
+    if ([string]::IsNullOrWhiteSpace($env:MOCK_PRODUCT_SERVICE_PORT)) {
+        $env:MOCK_PRODUCT_SERVICE_PORT = '8083'
+    }
+    if ([string]::IsNullOrWhiteSpace($env:MOCK_INVENTORY_SERVICE_PORT)) {
+        $env:MOCK_INVENTORY_SERVICE_PORT = '8084'
+    }
+    if ([string]::IsNullOrWhiteSpace($env:MOCK_PAYMENT_SERVICE_PORT)) {
+        $env:MOCK_PAYMENT_SERVICE_PORT = '8085'
+    }
+    if ([string]::IsNullOrWhiteSpace($env:MOCK_LOGISTICS_SERVICE_PORT)) {
+        $env:MOCK_LOGISTICS_SERVICE_PORT = '8086'
+    }
 }
 
 function Get-StartupTimeoutSeconds {
@@ -131,6 +146,16 @@ $gatewayLog = Join-Path $logDirectory 'mcp-gateway-server.log'
 $gatewayErrorLog = Join-Path $logDirectory 'mcp-gateway-server-error.log'
 $mockUserLog = Join-Path $logDirectory 'mock-user-service.log'
 $mockUserErrorLog = Join-Path $logDirectory 'mock-user-service-error.log'
+$mockOrderLog = Join-Path $logDirectory 'mock-order-service.log'
+$mockOrderErrorLog = Join-Path $logDirectory 'mock-order-service-error.log'
+$mockProductLog = Join-Path $logDirectory 'mock-product-service.log'
+$mockProductErrorLog = Join-Path $logDirectory 'mock-product-service-error.log'
+$mockInventoryLog = Join-Path $logDirectory 'mock-inventory-service.log'
+$mockInventoryErrorLog = Join-Path $logDirectory 'mock-inventory-service-error.log'
+$mockPaymentLog = Join-Path $logDirectory 'mock-payment-service.log'
+$mockPaymentErrorLog = Join-Path $logDirectory 'mock-payment-service-error.log'
+$mockLogisticsLog = Join-Path $logDirectory 'mock-logistics-service.log'
+$mockLogisticsErrorLog = Join-Path $logDirectory 'mock-logistics-service-error.log'
 $webAdminLog = Join-Path $logDirectory 'web-admin.log'
 $webAdminErrorLog = Join-Path $logDirectory 'web-admin-error.log'
 
@@ -143,7 +168,7 @@ if (-not (Test-Path -LiteralPath (Join-Path $webAdminRoot 'node_modules'))) {
     }
 }
 
-& mvn.cmd -gs $mavenSettings -s $mavenSettings -pl 'mcp-gateway-server,mock-user-service' package -DskipTests
+& mvn.cmd -gs $mavenSettings -s $mavenSettings -pl 'mcp-gateway-server,mock-user-service,mock-order-service,mock-product-service,mock-inventory-service,mock-payment-service,mock-logistics-service' package -DskipTests
 if ($LASTEXITCODE -ne 0) {
     throw '后端构建失败，未启动任何后台服务。请检查 Maven 输出后重试。'
 }
@@ -151,22 +176,45 @@ if ($LASTEXITCODE -ne 0) {
 $javaExecutable = Join-Path $env:JAVA_HOME 'bin/java.exe'
 $gatewayJar = Join-Path $projectRoot 'mcp-gateway-server/target/mcp-gateway-server-0.0.1-SNAPSHOT.jar'
 $mockUserJar = Join-Path $projectRoot 'mock-user-service/target/mock-user-service-0.0.1-SNAPSHOT.jar'
-if (-not (Test-Path -LiteralPath $gatewayJar) -or -not (Test-Path -LiteralPath $mockUserJar)) {
+$mockOrderJar = Join-Path $projectRoot 'mock-order-service/target/mock-order-service-0.0.1-SNAPSHOT.jar'
+$mockProductJar = Join-Path $projectRoot 'mock-product-service/target/mock-product-service-0.0.1-SNAPSHOT.jar'
+$mockInventoryJar = Join-Path $projectRoot 'mock-inventory-service/target/mock-inventory-service-0.0.1-SNAPSHOT.jar'
+$mockPaymentJar = Join-Path $projectRoot 'mock-payment-service/target/mock-payment-service-0.0.1-SNAPSHOT.jar'
+$mockLogisticsJar = Join-Path $projectRoot 'mock-logistics-service/target/mock-logistics-service-0.0.1-SNAPSHOT.jar'
+$requiredJars = @($gatewayJar, $mockUserJar, $mockOrderJar, $mockProductJar, $mockInventoryJar, $mockPaymentJar, $mockLogisticsJar)
+if ($requiredJars.Where({ -not (Test-Path -LiteralPath $_) }).Count -gt 0) {
     throw '后端构建未生成可运行 JAR，未启动任何后台服务。'
 }
 
-$gatewayProcess = Start-Process -PassThru -WindowStyle Hidden -FilePath $javaExecutable -ArgumentList '-jar', $gatewayJar -WorkingDirectory $projectRoot -RedirectStandardOutput $gatewayLog -RedirectStandardError $gatewayErrorLog
-$mockUserProcess = Start-Process -PassThru -WindowStyle Hidden -FilePath $javaExecutable -ArgumentList '-jar', $mockUserJar -WorkingDirectory $projectRoot -RedirectStandardOutput $mockUserLog -RedirectStandardError $mockUserErrorLog
-$webAdminProcess = Start-Process -PassThru -WindowStyle Hidden -FilePath 'npm.cmd' -ArgumentList 'run', 'dev', '--', '--host', '127.0.0.1' -WorkingDirectory $webAdminRoot -RedirectStandardOutput $webAdminLog -RedirectStandardError $webAdminErrorLog
-
+$startedProcesses = @()
 try {
+    $gatewayProcess = Start-Process -PassThru -WindowStyle Hidden -FilePath $javaExecutable -ArgumentList '-jar', $gatewayJar -WorkingDirectory $projectRoot -RedirectStandardOutput $gatewayLog -RedirectStandardError $gatewayErrorLog
+    $startedProcesses += $gatewayProcess
+    $mockUserProcess = Start-Process -PassThru -WindowStyle Hidden -FilePath $javaExecutable -ArgumentList '-jar', $mockUserJar -WorkingDirectory $projectRoot -RedirectStandardOutput $mockUserLog -RedirectStandardError $mockUserErrorLog
+    $startedProcesses += $mockUserProcess
+    $mockOrderProcess = Start-Process -PassThru -WindowStyle Hidden -FilePath $javaExecutable -ArgumentList '-jar', $mockOrderJar -WorkingDirectory $projectRoot -RedirectStandardOutput $mockOrderLog -RedirectStandardError $mockOrderErrorLog
+    $startedProcesses += $mockOrderProcess
+    $mockProductProcess = Start-Process -PassThru -WindowStyle Hidden -FilePath $javaExecutable -ArgumentList '-jar', $mockProductJar -WorkingDirectory $projectRoot -RedirectStandardOutput $mockProductLog -RedirectStandardError $mockProductErrorLog
+    $startedProcesses += $mockProductProcess
+    $mockInventoryProcess = Start-Process -PassThru -WindowStyle Hidden -FilePath $javaExecutable -ArgumentList '-jar', $mockInventoryJar -WorkingDirectory $projectRoot -RedirectStandardOutput $mockInventoryLog -RedirectStandardError $mockInventoryErrorLog
+    $startedProcesses += $mockInventoryProcess
+    $mockPaymentProcess = Start-Process -PassThru -WindowStyle Hidden -FilePath $javaExecutable -ArgumentList '-jar', $mockPaymentJar -WorkingDirectory $projectRoot -RedirectStandardOutput $mockPaymentLog -RedirectStandardError $mockPaymentErrorLog
+    $startedProcesses += $mockPaymentProcess
+    $mockLogisticsProcess = Start-Process -PassThru -WindowStyle Hidden -FilePath $javaExecutable -ArgumentList '-jar', $mockLogisticsJar -WorkingDirectory $projectRoot -RedirectStandardOutput $mockLogisticsLog -RedirectStandardError $mockLogisticsErrorLog
+    $startedProcesses += $mockLogisticsProcess
+    $webAdminProcess = Start-Process -PassThru -WindowStyle Hidden -FilePath 'npm.cmd' -ArgumentList 'run', 'dev', '--', '--host', '127.0.0.1' -WorkingDirectory $webAdminRoot -RedirectStandardOutput $webAdminLog -RedirectStandardError $webAdminErrorLog
+    $startedProcesses += $webAdminProcess
+
     Wait-ForEndpoint $gatewayProcess 'MCP 网关' "http://127.0.0.1:$env:MCP_GATEWAY_PORT/actuator/health" $gatewayLog $gatewayErrorLog $startupTimeoutSeconds
     Wait-ForEndpoint $mockUserProcess '用户模拟服务' "http://127.0.0.1:$env:MOCK_USER_SERVICE_PORT/v3/api-docs" $mockUserLog $mockUserErrorLog $startupTimeoutSeconds
+    Wait-ForEndpoint $mockOrderProcess '订单模拟服务' "http://127.0.0.1:$env:MOCK_ORDER_SERVICE_PORT/v3/api-docs" $mockOrderLog $mockOrderErrorLog $startupTimeoutSeconds
+    Wait-ForEndpoint $mockProductProcess '商品模拟服务' "http://127.0.0.1:$env:MOCK_PRODUCT_SERVICE_PORT/v3/api-docs" $mockProductLog $mockProductErrorLog $startupTimeoutSeconds
+    Wait-ForEndpoint $mockInventoryProcess '库存模拟服务' "http://127.0.0.1:$env:MOCK_INVENTORY_SERVICE_PORT/v3/api-docs" $mockInventoryLog $mockInventoryErrorLog $startupTimeoutSeconds
+    Wait-ForEndpoint $mockPaymentProcess '支付模拟服务' "http://127.0.0.1:$env:MOCK_PAYMENT_SERVICE_PORT/v3/api-docs" $mockPaymentLog $mockPaymentErrorLog $startupTimeoutSeconds
+    Wait-ForEndpoint $mockLogisticsProcess '物流模拟服务' "http://127.0.0.1:$env:MOCK_LOGISTICS_SERVICE_PORT/v3/api-docs" $mockLogisticsLog $mockLogisticsErrorLog $startupTimeoutSeconds
     Wait-ForEndpoint $webAdminProcess '管理端' 'http://127.0.0.1:5173' $webAdminLog $webAdminErrorLog $startupTimeoutSeconds
 } catch {
-    Stop-StartedProcess $gatewayProcess
-    Stop-StartedProcess $mockUserProcess
-    Stop-StartedProcess $webAdminProcess
+    $startedProcesses | ForEach-Object { Stop-StartedProcess $_ }
     throw
 }
 
@@ -174,4 +222,9 @@ Write-Host '已启动本机服务：'
 Write-Host "- 管理端：http://127.0.0.1:5173"
 Write-Host "- MCP 网关健康检查：http://127.0.0.1:$env:MCP_GATEWAY_PORT/actuator/health"
 Write-Host "- 用户模拟服务 OpenAPI：http://127.0.0.1:$env:MOCK_USER_SERVICE_PORT/v3/api-docs"
+Write-Host "- 订单模拟服务 OpenAPI：http://127.0.0.1:$env:MOCK_ORDER_SERVICE_PORT/v3/api-docs"
+Write-Host "- 商品模拟服务 OpenAPI：http://127.0.0.1:$env:MOCK_PRODUCT_SERVICE_PORT/v3/api-docs"
+Write-Host "- 库存模拟服务 OpenAPI：http://127.0.0.1:$env:MOCK_INVENTORY_SERVICE_PORT/v3/api-docs"
+Write-Host "- 支付模拟服务 OpenAPI：http://127.0.0.1:$env:MOCK_PAYMENT_SERVICE_PORT/v3/api-docs"
+Write-Host "- 物流模拟服务 OpenAPI：http://127.0.0.1:$env:MOCK_LOGISTICS_SERVICE_PORT/v3/api-docs"
 Write-Host "日志目录：$logDirectory"
