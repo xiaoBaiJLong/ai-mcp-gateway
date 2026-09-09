@@ -29,7 +29,7 @@
 5. 构建并启动应用组：
 
    ```bash
-   docker compose --env-file config/cloud.env up -d --build mcp-gateway-server mock-user-service web-admin
+   docker compose --env-file config/cloud.env up -d --build mcp-gateway-server mock-user-service mock-order-service mock-product-service mock-inventory-service mock-payment-service mock-logistics-service web-admin
    docker compose --env-file config/cloud.env ps
    curl -f http://127.0.0.1:18080/
    curl -f http://127.0.0.1/
@@ -43,7 +43,7 @@
 
 ```bash
 git pull --ff-only
-docker compose --env-file config/cloud.env up -d --build --no-deps mcp-gateway-server mock-user-service web-admin
+docker compose --env-file config/cloud.env up -d --build --no-deps mcp-gateway-server mock-user-service mock-order-service mock-product-service mock-inventory-service mock-payment-service mock-logistics-service web-admin
 docker compose --env-file config/cloud.env ps
 curl -f http://127.0.0.1:18080/
 curl -f http://127.0.0.1/
@@ -51,8 +51,14 @@ curl -f http://127.0.0.1/
 
 回滚到已验证提交时，检出该提交后重复同一条 `docker compose --env-file config/cloud.env up -d --build --no-deps ...` 命令。不要使用 `docker compose down`，更不要加 `-v`；它会停止基础设施，`-v` 还会删除持久卷。
 
+## 模拟业务服务
+
+应用组包含用户、订单、商品、库存、支付和物流六个模拟业务服务。各服务独立注册到 Nacos，并从固定 `/v3/api-docs` 发布 OpenAPI 3 文档；服务内的演示数据保存在内存中，容器重启后恢复预置状态。订单、商品、库存、支付、物流服务分别监听容器端口 `8082` 到 `8086`，只在 Compose 网络内暴露。
+
+所有模拟服务都使用保留值触发故障：查询资源 ID 或主要写入关联 ID 为 `not-found` 时返回 404，为 `server-error` 时返回 500，为 `slow` 时在默认 16 秒后返回。慢响应时长可通过 `config/cloud.env` 中相应的 `MOCK_*_SLOW_RESPONSE_DELAY` 覆盖。
+
 ## 首版复验
 
 云端管理端可依次重复：发现 `mock-user-service` 并导入 Tool、创建智能体并只保存一次 Agent Key、配置工具集与智能体工具快照、用该 Key 访问 `POST /mcp` 的 `tools/list` 和 `tools/call`、更新或禁用 Tool，并在验证台完成真实连接与对话调用。验证 `tools/call` 时覆盖成功、无效 Key、缺少或错误参数、模拟服务的 404/500、`userId=slow` 触发的 15 秒超时，以及禁用 Tool 的 JSON-RPC `-32602` 拒绝。
 
-在共享 Nacos 上进行云端复验前，停止本机模拟服务；本机和云端的 `mock-user-service` 不能同时注册。复验完成后如需继续本机开发，先停止云端模拟服务，或改用隔离的 Namespace。
+在共享 Nacos 上进行云端复验前，停止全部本机模拟服务；本机和云端不能同时注册任何同名模拟业务服务。复验完成后如需继续本机开发，先停止云端的六个模拟服务，或改用隔离的 Namespace。
