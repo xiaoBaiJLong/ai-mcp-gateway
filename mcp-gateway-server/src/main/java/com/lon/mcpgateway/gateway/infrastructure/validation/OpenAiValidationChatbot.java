@@ -1,6 +1,5 @@
 package com.lon.mcpgateway.gateway.infrastructure.validation;
 
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -48,16 +47,18 @@ class OpenAiValidationChatbot implements OpenAiValidationChatbotPort {
         }
         ValidationModelSettingsPort.ModelSettings modelSettings = settings.settings();
         Map<Integer, ToolCallAccumulator> calls = new LinkedHashMap<>();
+        Map<String, String> modelToMcpToolNames = new LinkedHashMap<>();
         return webClientBuilder.baseUrl(trimTrailingSlash(modelSettings.baseUrl())).build().post().uri("/chat/completions")
                 .contentType(MediaType.APPLICATION_JSON).accept(MediaType.TEXT_EVENT_STREAM)
-                .headers(headers -> headers.setBearerAuth(apiKey)).bodyValue(payload(modelSettings.model(), request))
+                .headers(headers -> headers.setBearerAuth(apiKey))
+                .bodyValue(payload(modelSettings.model(), request, modelToMcpToolNames))
                 .retrieve().bodyToFlux(new ParameterizedTypeReference<ServerSentEvent<String>>() {
-                }).concatMap(event -> Flux.fromIterable(events(event.data(), calls)))
+                }).concatMap(event -> Flux.fromIterable(events(event.data(), calls, modelToMcpToolNames)))
                 .onErrorMap(exception -> exception instanceof GatewayException ? exception
                         : new GatewayException("VALIDATION_MODEL_UNAVAILABLE", "调用 OpenAI 验证模型失败"));
     }
 
-    private ObjectNode payload(String model, ChatbotRequest request) {
+    private ObjectNode payload(String model, ChatbotRequest request, Map<String, String> modelToMcpToolNames) {
         ObjectNode payload = objectMapper.createObjectNode();
         payload.put("model", model).put("stream", true).put("tool_choice", "auto");
         ArrayNode messages = payload.putArray("messages");
@@ -67,15 +68,19 @@ class OpenAiValidationChatbot implements OpenAiValidationChatbotPort {
             message(messages, "system", "本轮已执行的 Tool 结果（必须据此继续）：" + write(request.toolResults()));
         }
         ArrayNode tools = payload.putArray("tools");
-        request.tools().forEach(tool -> {
+        for (int index = 0; index < request.tools().size(); index++) {
+            var tool = request.tools().get(index);
+            String modelToolName = "mcp_tool_" + index;
+            modelToMcpToolNames.put(modelToolName, tool.name());
             ObjectNode function = tools.addObject().put("type", "function").putObject("function");
-            function.put("name", tool.name()).put("description", tool.description());
+            function.put("name", modelToolName)
+                    .put("description", "MCP Tool " + tool.name() + "：" + tool.description());
             try {
                 function.set("parameters", objectMapper.readTree(tool.inputSchema()));
             } catch (Exception exception) {
                 throw new GatewayException("VALIDATION_MCP_FAILURE", "MCP Tool 输入 schema 无效");
             }
-        });
+        }
         return payload;
     }
 
@@ -83,12 +88,14 @@ class OpenAiValidationChatbot implements OpenAiValidationChatbotPort {
         messages.addObject().put("role", role).put("content", content);
     }
 
-    private List<ChatbotEvent> events(String data, Map<Integer, ToolCallAccumulator> calls) {
+    private List<ChatbotEvent> events(String data, Map<Integer, ToolCallAccumulator> calls,
+            Map<String, String> modelToMcpToolNames) {
         if (data == null || data.isBlank()) {
             return List.of();
         }
         if ("[DONE]".equals(data)) {
-            return calls.values().stream().map(ToolCallAccumulator::toEvent).map(event -> (ChatbotEvent) event).toList();
+            return calls.values().stream().map(call -> call.toEvent(modelToMcpToolNames))
+                    .map(event -> (ChatbotEvent) event).toList();
         }
         try {
             JsonNode delta = objectMapper.readTree(data).path("choices").path(0).path("delta");
@@ -137,10 +144,17 @@ class OpenAiValidationChatbot implements OpenAiValidationChatbotPort {
             }
         }
 
-        ToolCallEvent toEvent() {
+        ToolCallEvent toEvent(Map<String, String> modelToMcpToolNames) {
             try {
-                return new ToolCallEvent(new ToolCall(id, name, objectMapper.readTree(arguments.toString())));
+                String mcpToolName = modelToMcpToolNames.get(name);
+                if (mcpToolName == null) {
+                    throw new GatewayException("VALIDATION_MODEL_UNAVAILABLE", "验证模型返回了未知 Tool 名称");
+                }
+                return new ToolCallEvent(new ToolCall(id, mcpToolName, objectMapper.readTree(arguments.toString())));
             } catch (Exception exception) {
+                if (exception instanceof GatewayException gatewayException) {
+                    throw gatewayException;
+                }
                 throw new GatewayException("VALIDATION_MODEL_UNAVAILABLE", "OpenAI Tool 调用参数无效");
             }
         }
