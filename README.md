@@ -15,6 +15,31 @@ AI MCP Gateway 是一个面向企业内部 Agent 的 MCP 网关。它从 Nacos �
 - **MCP 验证台**：使用真实 Agent Credential 建立 MCP 连接，由大模型在实际权限范围内完成 Tool 选择和调用。
 - **业务服务集群**：提供用户、订单、商品、库存、支付和物流六个业务服务，用于覆盖查询、写入、异常和超时等调用场景。
 
+## 界面预览
+
+### 从 OpenAPI 创建 MCP Tool
+
+选择业务服务的 OpenAPI operation，预览并确认 Tool 名称、HTTP Mapping 与输入 Schema。
+
+![从 OpenAPI 创建 MCP Tool](docs/images/openapi-tool-mapping.png)
+
+### Agent 与工具权限
+
+每个 Agent 使用独立 Credential，并持有发布后的工具权限快照。
+
+![Agent 与工具权限管理](docs/images/agent-management.png)
+
+### MCP 验证台
+
+验证台通过真实 Agent Key 连接网关，展示模型决策、Tool 输入、执行状态和调用结果。
+
+<details>
+<summary>查看完整 MCP Tool 调用过程</summary>
+
+![MCP 验证台完整调用过程](docs/images/mcp-validation-console.png)
+
+</details>
+
 ## 技术栈
 
 - 后端：Java 21、Spring Boot 3.5、Spring WebFlux、MyBatis-Plus
